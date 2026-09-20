@@ -13,8 +13,8 @@
   const PRIORITIES = ['Low', 'Medium', 'High'];
   const TERMINAL = new Set(['Rejected', 'Withdrawn', 'Hired']);
   const SOURCE_COLORS = {
-    LinkedIn: '#3776d2', Glints: '#f15b37', Pintarnya: '#2f9d6b', JobStreet: '#1458b8', Kalibrr: '#e4585d',
-    Instagram: '#b8507d', Threads: '#222222', WhatsApp: '#31a86a', 'Company Website': '#777770', Referral: '#906fc4', Other: '#8d8d86'
+    LinkedIn: '#2563eb', Glints: '#ea580c', Pintarnya: '#16a34a', JobStreet: '#1d4ed8', Kalibrr: '#e11d48',
+    Instagram: '#c026d3', Threads: '#0f172a', WhatsApp: '#15803d', 'Company Website': '#64748b', Referral: '#7c3aed', Other: '#64748b'
   };
 
   const appRoot = document.getElementById('app');
@@ -34,7 +34,7 @@
     quickFilterOpen: false,
     sidebarOpen: false,
     calendarDate: startOfMonth(new Date()),
-    loading: true
+    loading: false
   };
 
   function defaultFilters() {
@@ -137,7 +137,7 @@
   function checked(value) { return value ? 'checked' : ''; }
   function nowIso() { return new Date().toISOString(); }
 
-  // Lightweight inline icon set so the interface has no external dependency.
+  // Lightweight inline icon set with strict width/height boundaries to guarantee zero visual blowout
   function icon(name, className = '') {
     const paths = {
       dashboard: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -181,7 +181,8 @@
       external: '<path d="M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/>',
       list: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>'
     };
-    return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.info}</svg>`;
+    const classes = ['icon', className].filter(Boolean).join(' ');
+    return `<svg class="${classes}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.info}</svg>`;
   }
 
   // ---------- Local relational seed/database ----------
@@ -266,7 +267,7 @@
     return e0?.event_date || app.updated_at?.slice(0, 10) || app.applied_date || app.created_at?.slice(0, 10);
   }
 
-  // ---------- Calculated data; every figure is derived from persisted records ----------
+  // ---------- Derived application analytics ----------
   function appIsResponded(app) {
     if (['Screening', 'Interview', 'Technical Test', 'Final Interview', 'Offer', 'Hired', 'Rejected'].includes(app.status)) return true;
     return state.db.application_events.some(ev => ev.application_id === app.id && !['Applied', 'Saved'].includes(ev.event_type));
@@ -283,13 +284,14 @@
     return sent.length ? Math.round((sent.filter(appIsResponded).length / sent.length) * 100) : 0;
   }
   function dashboardMetrics() {
+    const active = activeApplications().length;
     return [
-      { label: 'Total applications', value: state.db.applications.length, foot: `${activeApplications().length} active opportunity`, icon: 'briefcase' },
-      { label: 'Applied this week', value: applicationsThisWeek().length, foot: 'Based on applied date', icon: 'calendar' },
-      { label: 'Interview', value: state.db.applications.filter(a => ['Interview', 'Technical Test', 'Final Interview'].includes(a.status)).length, foot: 'Across active stages', icon: 'clock' },
-      { label: 'Offer', value: state.db.applications.filter(a => a.status === 'Offer').length, foot: 'Awaiting a decision', icon: 'target' },
-      { label: 'Rejected', value: state.db.applications.filter(a => a.status === 'Rejected').length, foot: 'Keep moving forward', icon: 'close' },
-      { label: 'Response rate', value: `${responseRate()}%`, foot: 'Applications with a response', icon: 'trend' }
+      { label: 'Total applications', value: state.db.applications.length, foot: `${active} active role${active === 1 ? '' : 's'} in progress`, icon: 'briefcase' },
+      { label: 'Applied this week', value: applicationsThisWeek().length, foot: 'Based on applied dates', icon: 'calendar' },
+      { label: 'Interview', value: state.db.applications.filter(a => ['Interview', 'Technical Test', 'Final Interview'].includes(a.status)).length, foot: 'Active interview stages', icon: 'clock' },
+      { label: 'Offer', value: state.db.applications.filter(a => a.status === 'Offer').length, foot: 'Awaiting decision', icon: 'target' },
+      { label: 'Rejected', value: state.db.applications.filter(a => a.status === 'Rejected').length, foot: 'Completed or closed', icon: 'close' },
+      { label: 'Response rate', value: `${responseRate()}%`, foot: 'Logged employer response', icon: 'trend' }
     ];
   }
   function primaryActionFor(app) {
@@ -312,7 +314,7 @@
     state.db.applications.forEach(app => {
       if (TERMINAL.has(app.status)) return;
       const company = appCompanyName(app);
-      if (app.next_followup && (includePast ? app.next_followup <= end : app.next_followup >= today && app.next_followup <= end)) add({ application_id: app.id, date: app.next_followup, title: `Follow up ${company}`, sub: app.job_title, kind: 'followup' });
+      if (app.next_followup && (includePast ? app.next_followup <= end : app.next_followup >= today && app.next_followup <= end)) add({ application_id: app.id, date: app.next_followup, title: `Follow up · ${company}`, sub: app.job_title, kind: 'followup' });
       if (app.deadline && (includePast ? app.deadline <= end : app.deadline >= today && app.deadline <= end)) add({ application_id: app.id, date: app.deadline, title: `Deadline · ${app.job_title}`, sub: company, kind: 'deadline' });
     });
     state.db.reminders.filter(r => !r.completed && r.reminder_date && (includePast ? r.reminder_date <= end : r.reminder_date >= today && r.reminder_date <= end)).forEach(r => {
@@ -336,12 +338,12 @@
     state.db.applications.forEach(app => {
       if (TERMINAL.has(app.status) || app.status === 'Saved') return;
       const c = appCompanyName(app);
-      if (app.next_followup && diffDays(app.next_followup, new Date()) <= 0) add(app, 'overdue', `Follow up ${c}`, `${app.job_title} · ${humanDue(app.next_followup)}`, app.next_followup);
-      if (app.deadline && diffDays(app.deadline, new Date()) <= 2) add(app, 'deadline', `Deadline is close`, `${c} · ${humanDue(app.deadline)}`, app.deadline);
+      if (app.next_followup && diffDays(app.next_followup, new Date()) <= 0) add(app, 'overdue', `Follow up · ${c}`, `${app.job_title} · ${humanDue(app.next_followup)}`, app.next_followup);
+      if (app.deadline && diffDays(app.deadline, new Date()) <= 2) add(app, 'deadline', `Upcoming deadline`, `${c} · ${humanDue(app.deadline)}`, app.deadline);
       const upcomingInterview = state.db.application_events.find(ev => ev.application_id === app.id && /interview|technical test|test/i.test(`${ev.event_type} ${ev.title}`) && diffDays(ev.event_date, new Date()) >= 0 && diffDays(ev.event_date, new Date()) <= 2);
       if (upcomingInterview) add(app, 'upcoming', upcomingInterview.title || upcomingInterview.event_type, `${c} · ${humanDue(upcomingInterview.event_date)}`, upcomingInterview.event_date);
       const latest = getLatestInteraction(app);
-      if (latest && diffDays(new Date(), latest) > 7) add(app, 'stale', `No update for ${diffDays(new Date(), latest)} days`, `${c} · ${app.job_title}`, latest);
+      if (latest && diffDays(new Date(), latest) > 7) add(app, 'stale', `No activity for ${diffDays(new Date(), latest)} days`, `${c} · ${app.job_title}`, latest);
     });
     const priority = { overdue: 0, deadline: 1, upcoming: 2, stale: 3 };
     return items.sort((a, b) => (priority[a.type] - priority[b.type]) || String(a.due).localeCompare(String(b.due)));
@@ -407,7 +409,11 @@
   }
   function renderSidebar() {
     return `<aside class="sidebar ${state.sidebarOpen ? 'open' : ''}" aria-label="Main navigation">
-      <button class="brand" data-action="navigate" data-view="dashboard" aria-label="JobTrack dashboard"><span class="brand-mark">J</span><span class="brand-name">JobTrack</span><span class="brand-tag">PERSONAL</span></button>
+      <button class="brand" data-action="navigate" data-view="dashboard" aria-label="JobTrack dashboard">
+        <span class="brand-mark">J</span>
+        <span class="brand-name">JobTrack</span>
+        <span class="brand-tag">PERSONAL</span>
+      </button>
       <span class="nav-label">Workspace</span>
       <nav class="sidebar-nav">
         ${navItem('dashboard', 'Dashboard', 'dashboard')}
@@ -422,11 +428,16 @@
         <nav class="sidebar-nav">${navItem('settings', 'Settings', 'settings')}</nav>
         ${hasSeedData() ? `<div class="sidebar-help"><b>Demo workspace</b><span>Sample applications are clearly marked and can be removed anytime.</span><button data-action="clear-demo">Clear demo data</button></div>` : ''}
         <div class="user-card">
-          <span class="avatar">AM</span><div class="user-details"><b>Arif Mahendra</b><span>Personal workspace</span></div>
+          <span class="avatar">AM</span>
+          <div class="user-details">
+            <b>Arif Mahendra</b>
+            <span>Personal workspace</span>
+          </div>
           <button class="user-more" data-action="toggle-profile" aria-label="Profile menu">${icon('more')}</button>
         </div>
       </div>
-    </aside>`;
+    </aside>
+    <div class="sidebar-backdrop ${state.sidebarOpen ? 'open' : ''}" data-action="toggle-sidebar"></div>`;
   }
   function renderSearchPopover() {
     const query = state.globalQuery.trim().toLowerCase();
@@ -440,33 +451,38 @@
   function renderNotifications() {
     if (!state.notificationOpen) return '';
     const notifications = getUpcomingActions({ includePast: true, maxDays: 2 }).filter(x => diffDays(x.date, new Date()) <= 1).slice(0, 8);
-    return `<div class="popover" style="right: 84px; top: 58px;" role="dialog" aria-label="Reminders"><div class="popover-header"><b>Reminders</b><span style="color:var(--text-faint);font-size:10px">${notifications.length ? `${notifications.length} due` : 'All clear'}</span></div><div class="popover-body">${notifications.length ? notifications.map(item => `<button class="notification-item" data-action="open-detail" data-id="${item.application_id}"><b>${e(item.title)}</b><span>${e(item.sub)} · ${e(humanDue(item.date))}</span></button>`).join('') : '<div class="popover-empty">No reminders due today or tomorrow.</div>'}</div></div>`;
+    return `<div class="popover" style="right: 68px; top: 54px;" role="dialog" aria-label="Reminders"><div class="popover-header"><b>Reminders</b><span style="color:var(--text-faint);font-size:11px">${notifications.length ? `${notifications.length} due` : 'All clear'}</span></div><div class="popover-body">${notifications.length ? notifications.map(item => `<button class="notification-item" data-action="open-detail" data-id="${item.application_id}"><b>${e(item.title)}</b><span>${e(item.sub)} · ${e(humanDue(item.date))}</span></button>`).join('') : '<div class="popover-empty">No reminders due today or tomorrow.</div>'}</div></div>`;
   }
   function renderProfilePopover() {
     if (!state.profileOpen) return '';
     const dark = state.db.meta.theme === 'dark';
-    return `<div class="popover" style="right: 22px; top: 58px; min-width:220px"><div class="popover-body"><button class="notification-item" data-action="navigate" data-view="settings"><b>Workspace settings</b><span>Theme, export, and data controls</span></button><button class="notification-item" data-action="toggle-theme"><b>${dark ? 'Use light mode' : 'Use dark mode'}</b><span>Switch the workspace appearance</span></button></div></div>`;
+    return `<div class="popover" style="right: 20px; top: 54px; min-width:210px"><div class="popover-body"><button class="notification-item" data-action="navigate" data-view="settings"><b>Workspace settings</b><span>Theme, backup, and data</span></button><button class="notification-item" data-action="toggle-theme"><b>${dark ? 'Switch to light mode' : 'Switch to dark mode'}</b><span>Toggle interface theme</span></button></div></div>`;
   }
   function renderQuickFilter() {
     if (!state.quickFilterOpen) return '';
-    return `<div class="popover" style="top:58px; right:148px; min-width:300px"><div class="popover-header"><b>Quick filters</b><button class="btn btn-quiet btn-sm" data-action="clear-filters">Clear</button></div><div class="popover-body" style="padding:12px"><div class="form-grid"><div class="field"><label>Status</label><select data-filter="status">${selectOptions(STATUS_OPTIONS, state.filters.status, 'All statuses')}</select></div><div class="field"><label>Source</label><select data-filter="source">${selectOptions(SOURCES, state.filters.source, 'All sources')}</select></div><div class="field"><label>Priority</label><select data-filter="priority">${selectOptions(PRIORITIES, state.filters.priority, 'All priorities')}</select></div><div class="field"><label>Job type</label><select data-filter="jobType">${selectOptions(JOB_TYPES, state.filters.jobType, 'All types')}</select></div></div></div></div>`;
+    return `<div class="popover" style="top:54px; right:110px; min-width:300px"><div class="popover-header"><b>Quick filters</b><button class="btn btn-quiet btn-sm" data-action="clear-filters">Clear</button></div><div class="popover-body" style="padding:14px"><div class="form-grid"><div class="field"><label>Status</label><select class="filter-select" data-filter="status">${selectOptions(STATUS_OPTIONS, state.filters.status, 'All statuses')}</select></div><div class="field"><label>Source</label><select class="filter-select" data-filter="source">${selectOptions(SOURCES, state.filters.source, 'All sources')}</select></div><div class="field"><label>Priority</label><select class="filter-select" data-filter="priority">${selectOptions(PRIORITIES, state.filters.priority, 'All priorities')}</select></div><div class="field"><label>Job type</label><select class="filter-select" data-filter="jobType">${selectOptions(JOB_TYPES, state.filters.jobType, 'All types')}</select></div></div></div></div>`;
   }
   function renderTopbar() {
     const dueCount = getUpcomingActions({ includePast: true, maxDays: 2 }).filter(x => diffDays(x.date, new Date()) <= 1).length;
+    const dark = state.db.meta.theme === 'dark';
     return `<header class="topbar">
       <button class="icon-button mobile-menu" data-action="toggle-sidebar" aria-label="Open navigation">${icon('menu')}</button>
-      <div class="global-search"><span>${icon('search')}</span><input data-global-search placeholder="Search company, role, recruiter, notes…" value="${attr(state.globalQuery)}" aria-label="Global search"/><span class="shortcut">⌘ K</span>${renderSearchPopover()}</div>
+      <div class="global-search">
+        ${icon('search', 'global-search-icon')}
+        <input data-global-search placeholder="Search company, role, recruiter, notes..." value="${attr(state.globalQuery)}" aria-label="Global search" />
+        <span class="shortcut">⌘ K</span>
+        ${renderSearchPopover()}
+      </div>
       <div class="top-actions">
-        <button class="icon-button hide-mobile" data-action="toggle-quick-filter" aria-label="Open filters">${icon('filter')}</button>
-        <button class="icon-button" data-action="toggle-notifications" aria-label="Reminders">${icon('bell')}${dueCount ? '<i class="notification-dot"></i>' : ''}</button>
-        <button class="btn btn-primary" data-action="open-application-modal">${icon('plus')}<span class="add-word">Add Application</span></button>
-        <button class="avatar hide-mobile" style="border:0;cursor:pointer" data-action="toggle-profile" aria-label="Profile">AM</button>
+        <button class="icon-button" data-action="toggle-theme" title="Toggle appearance" aria-label="Toggle appearance">${dark ? icon('sun') : icon('moon')}</button>
+        <button class="icon-button" data-action="toggle-notifications" aria-label="Reminders" title="Reminders">${icon('bell')}${dueCount ? '<i class="notification-dot"></i>' : ''}</button>
+        <button class="avatar" style="border:none;cursor:pointer" data-action="toggle-profile" aria-label="Profile">AM</button>
       </div>
       ${renderNotifications()}${renderProfilePopover()}${renderQuickFilter()}
     </header>`;
   }
   function renderLoading() {
-    return `<main class="page"><div class="page-header"><div><div class="skeleton" style="width:170px;height:28px;border-radius:6px"></div><div class="skeleton" style="width:260px;height:14px;border-radius:5px;margin-top:9px"></div></div></div><div class="metrics-grid">${Array.from({ length: 6 }, () => '<div class="metric-card skeleton"></div>').join('')}</div><div class="card skeleton" style="height:255px"></div></main>`;
+    return `<main class="page"><div class="page-header"><div><div class="skeleton" style="width:180px;height:28px;border-radius:6px"></div><div class="skeleton" style="width:280px;height:14px;border-radius:4px;margin-top:8px"></div></div></div><div class="metrics-grid">${Array.from({ length: 6 }, () => '<div class="metric-card skeleton" style="height:110px"></div>').join('')}</div><div class="card skeleton" style="height:260px"></div></main>`;
   }
   function renderApp() {
     document.documentElement.dataset.theme = state.db.meta.theme || 'light';
@@ -488,7 +504,7 @@
   }
 
   // ---------- Reusable fragments ----------
-  function selectOptions(options, current, placeholder = 'Select…') {
+  function selectOptions(options, current, placeholder = 'Select.') {
     return `<option value="">${e(placeholder)}</option>${options.map(x => `<option value="${attr(x)}" ${selected(current, x)}>${e(x)}</option>`).join('')}`;
   }
   function statusBadge(status) { return `<span class="status-badge ${statusClass(status)}">${e(status || 'Saved')}</span>`; }
@@ -496,14 +512,14 @@
   function sourceLabel(source) { return `<span class="source"><i class="source-dot" style="--source-color:${sourceColor(source)}"></i>${e(source || 'Other')}</span>`; }
   function demoBanner() {
     if (!hasSeedData()) return '';
-    return `<div class="demo-banner">${icon('info')}<span><b>Demo data is active.</b> These sample applications are here for preview only and are included in every metric.</span><span class="demo-actions"><button class="inline-link" data-action="clear-demo">Remove demo data</button></span></div>`;
+    return `<div class="demo-banner">${icon('info')}<span><b>Demo data is active.</b> These sample applications illustrate live tracking and are included in current metrics.</span><span class="demo-actions"><button class="inline-link" data-action="clear-demo">Remove demo data</button></span></div>`;
   }
   function noAppsEmpty() {
-    return `<div class="empty-state"><div class="empty-icon">${icon('briefcase')}</div><h3>No applications yet.</h3><p>Start tracking your job search in one focused place. Your dashboard, reminders, and analytics will update automatically.</p><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add your first application</button></div>`;
+    return `<div class="empty-state"><div class="empty-icon">${icon('briefcase')}</div><h3>No applications yet</h3><p>Start tracking your job search in one focused place. Reminders, pipeline counts, and analytics will update automatically.</p><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add your first application</button></div>`;
   }
   function actionList(items, emptyText = 'No upcoming actions.') {
     if (!items.length) return `<div class="empty-inline">${icon('check')}<div>${e(emptyText)}</div></div>`;
-    return `<div class="action-list">${items.map(item => `<button class="action-item" data-action="open-detail" data-id="${item.application_id}"><i class="action-marker ${item.type === 'overdue' || (item.date && diffDays(item.date, new Date()) < 0) ? 'overdue' : (item.type === 'upcoming' || item.kind === 'interview' ? 'upcoming' : '')}"></i><span class="action-content"><b>${e(item.title)}</b><span>${e(item.sub || '')}</span></span><span class="action-date">${e(humanDue(item.date || item.due))}</span></button>`).join('')}</div>`;
+    return `<div class="action-list">${items.map(item => `<button class="action-item" data-action="open-detail" data-id="${item.application_id}"><i class="action-marker ${item.type === 'overdue' || (item.date && diffDays(item.date, new Date()) < 0) ? 'overdue' : (item.type === 'upcoming' || item.kind === 'interview' ? 'upcoming' : '')}"></i><span class="action-content"><b>${e(item.title)}</b><span>${e(item.sub || '')}</span></span><span class="action-date ${item.type === 'overdue' || (item.date && diffDays(item.date, new Date()) < 0) ? 'overdue' : ''}">${e(humanDue(item.date || item.due))}</span></button>`).join('')}</div>`;
   }
   function card(title, body, opts = {}) {
     return `<section class="card ${opts.className || ''}"><div class="card-header"><div><h2 class="card-title">${e(title)}</h2>${opts.subtitle ? `<div class="card-subtitle">${e(opts.subtitle)}</div>` : ''}</div>${opts.action || ''}</div>${body}</section>`;
@@ -518,23 +534,41 @@
     const attention = getNeedsAttention().slice(0, 5);
     const insights = renderInsights();
     return `<main class="page">
-      <div class="page-header"><div><h1 class="page-title">Good to see you, Arif.</h1><p class="page-subtitle">Your job search, organized. Here is the current picture.</p></div><div class="page-header-actions"><button class="btn" data-action="navigate" data-view="analytics">${icon('analytics')} View analytics</button><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button></div></div>
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Good to see you, Arif.</h1>
+          <p class="page-subtitle">Your job search, organized. Here is the current picture.</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn" data-action="navigate" data-view="analytics">${icon('analytics')} View analytics</button>
+          <button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button>
+        </div>
+      </div>
       ${demoBanner()}
-      <section class="metrics-grid">${metrics.map(m => `<article class="metric-card"><div class="metric-label"><span>${e(m.label)}</span>${icon(m.icon)}</div><div class="metric-value">${e(m.value)}</div><div class="metric-foot">${e(m.foot)}</div></article>`).join('')}</section>
-      ${state.db.applications.length ? `<div class="dashboard-grid"><div class="stack">
-        ${card('Application pipeline', `<div class="pipeline-wrap"><div class="pipeline">${pipeline.map(x => `<button class="pipeline-stage ${x.count ? 'active' : ''}" data-action="filter-status" data-status="${attr(x.status)}"><span class="p-count">${x.count}</span><span class="p-name">${e(x.status)}</span></button>`).join('')}</div></div>`, { subtitle: 'Live count by current stage', action: '<button class="card-link" data-action="navigate" data-view="applications">Manage applications</button>' })}
-        ${renderRecentApplications(recent)}
-      </div><aside class="stack">
-        ${card('Upcoming actions', actionList(actions), { subtitle: 'Based on real reminders and dates', action: '<button class="card-link" data-action="navigate" data-view="calendar">Open calendar</button>' })}
-        ${card('Needs attention', actionList(attention, 'Nothing needs attention right now.'), { subtitle: 'Overdue, stale, or time-sensitive' })}
-        ${card('Job search insights', insights, { subtitle: 'Calculated from your records' })}
-      </aside></div>` : noAppsEmpty()}
+      <section class="metrics-grid">
+        ${metrics.map(m => `<article class="metric-card">
+          <div class="metric-label"><span>${e(m.label)}</span>${icon(m.icon)}</div>
+          <div class="metric-value">${e(m.value)}</div>
+          <div class="metric-foot">${e(m.foot)}</div>
+        </article>`).join('')}
+      </section>
+      ${state.db.applications.length ? `<div class="dashboard-grid">
+        <div class="stack">
+          ${card('Application pipeline', `<div class="pipeline-wrap"><div class="pipeline">${pipeline.map(x => `<button class="pipeline-stage ${x.count ? 'active' : ''}" data-action="filter-status" data-status="${attr(x.status)}"><span class="p-count">${x.count}</span><span class="p-name">${e(x.status)}</span></button>`).join('')}</div></div>`, { subtitle: 'Live count by current stage', action: '<button class="card-link" data-action="navigate" data-view="applications">Manage applications</button>' })}
+          ${renderRecentApplications(recent)}
+        </div>
+        <aside class="stack">
+          ${card('Upcoming actions', actionList(actions), { subtitle: 'Based on real reminders and dates', action: '<button class="card-link" data-action="navigate" data-view="calendar">Open calendar</button>' })}
+          ${card('Needs attention', actionList(attention, 'Nothing needs attention right now.'), { subtitle: 'Overdue, stale, or time-sensitive' })}
+          ${card('Job search insights', insights, { subtitle: 'Calculated from your records' })}
+        </aside>
+      </div>` : noAppsEmpty()}
     </main>`;
   }
   function renderRecentApplications(apps) {
-    const body = apps.length ? `<div class="table-wrap"><table><thead><tr><th>Company / role</th><th>Source</th><th>Applied</th><th>Status</th><th>Next action</th><th>Salary</th><th>Updated</th></tr></thead><tbody>${apps.map(app => {
+    const body = apps.length ? `<div class="table-wrap"><table><thead><tr><th>Company / Role</th><th>Source</th><th>Applied</th><th>Status</th><th>Next action</th><th>Salary</th><th>Updated</th></tr></thead><tbody>${apps.map(app => {
       const next = primaryActionFor(app);
-      return `<tr class="clickable" data-action="open-detail" data-id="${app.id}"><td><div class="company-cell"><span class="mini-avatar">${e(initials(appCompanyName(app)))}</span><span>${e(appCompanyName(app))}<small>${e(app.job_title)}</small></span></div></td><td>${sourceLabel(app.source)}</td><td>${e(formatShortDate(app.applied_date))}</td><td>${statusBadge(app.status)}</td><td>${next ? `<span title="${attr(next.label)}">${e(next.label)}<br><small style="color:var(--text-faint)">${e(humanDue(next.date))}</small></span>` : '—'}</td><td>${e(salaryLabel(app))}</td><td>${e(formatShortDate(getLatestInteraction(app)))}</td></tr>`;
+      return `<tr class="clickable" data-action="open-detail" data-id="${app.id}"><td><div class="company-cell"><span class="mini-avatar">${e(initials(appCompanyName(app)))}</span><span>${e(appCompanyName(app))}<small>${e(app.job_title)}</small></span></div></td><td>${sourceLabel(app.source)}</td><td>${e(formatShortDate(app.applied_date))}</td><td>${statusBadge(app.status)}</td><td>${next ? `<span style="color:var(--text);font-size:11px">${e(next.label)}<small style="display:block;color:var(--text-faint)">${e(humanDue(next.date))}</small></span>` : '—'}</td><td>${e(salaryLabel(app))}</td><td>${e(formatShortDate(getLatestInteraction(app)))}</td></tr>`;
     }).join('')}</tbody></table></div>` : '<div class="empty-inline">No applications yet.</div>';
     return card('Recent applications', body, { subtitle: 'Most recently updated', action: '<button class="card-link" data-action="navigate" data-view="applications">View all</button>' });
   }
@@ -545,10 +579,10 @@
     const categories = Object.entries(data.categories).sort((a, b) => b[1] - a[1]);
     const thisMonth = state.db.applications.filter(a => a.applied_date && toDate(a.applied_date).getMonth() === new Date().getMonth() && toDate(a.applied_date).getFullYear() === new Date().getFullYear()).length;
     const lines = [
-      `<b>${thisMonth} application${thisMonth === 1 ? '' : 's'}</b> sent this month.`,
-      best ? `<b>${e(best[0])}</b> is your most-used source with ${best[1]} application${best[1] === 1 ? '' : 's'}.` : 'Add a source to compare channels.',
-      data.averageResponse !== null ? `<b>${data.averageResponse.toFixed(1)} days</b> average time to first response.` : 'Response time will appear after the first response is logged.',
-      categories[0] ? `Most applications are for <b>${e(categories[0][0])}</b> roles.` : ''
+      `<b>${thisMonth} application${thisMonth === 1 ? '' : 's'}</b> submitted this month.`,
+      best ? `<b>${e(best[0])}</b> is your highest-volume channel with ${best[1]} application${best[1] === 1 ? '' : 's'}.` : 'Add application sources to compare channels.',
+      data.averageResponse !== null ? `<b>${data.averageResponse.toFixed(1)} days</b> average time to initial employer response.` : 'Response timing calculates after responses are logged.',
+      categories[0] ? `Most applications target <b>${e(categories[0][0])}</b> positions.` : ''
     ].filter(Boolean);
     return `<div class="insight-list">${lines.slice(0, 4).map((line, index) => `<div class="insight-item"><span class="insight-icon">${icon(['trend', 'target', 'clock', 'briefcase'][index])}</span><span class="insight-text">${line}</span></div>`).join('')}</div>`;
   }
@@ -580,24 +614,58 @@
   }
   function renderToolbar() {
     const f = state.filters;
-    return `<div class="toolbar"><div class="segmented"><button class="${state.appViewMode === 'table' ? 'active' : ''}" data-action="set-app-view" data-mode="table">${icon('table')} Table</button><button class="${state.appViewMode === 'kanban' ? 'active' : ''}" data-action="set-app-view" data-mode="kanban">${icon('columns')} Kanban</button></div><span class="toolbar-spacer"></span><div class="toolbar-search">${icon('search')}<input class="input" data-filter="search" value="${attr(f.search)}" placeholder="Search applications"/></div><select class="filter-select" data-filter="status">${selectOptions(STATUS_OPTIONS, f.status, 'All statuses')}</select><select class="filter-select" data-filter="source">${selectOptions(SOURCES, f.source, 'All sources')}</select><select class="filter-select" data-filter="priority">${selectOptions(PRIORITIES, f.priority, 'Priority')}</select><button class="btn btn-sm" data-action="open-advanced-filter">${icon('filter')} More</button><select class="filter-select" data-filter="sort"><option value="newest" ${selected(f.sort,'newest')}>Newest</option><option value="oldest" ${selected(f.sort,'oldest')}>Oldest</option><option value="updated" ${selected(f.sort,'updated')}>Recently updated</option><option value="salary" ${selected(f.sort,'salary')}>Highest salary</option><option value="deadline" ${selected(f.sort,'deadline')}>Upcoming deadline</option></select>${Object.values(f).some(v => v && v !== 'newest') ? '<button class="btn btn-quiet btn-sm" data-action="clear-filters">Clear</button>' : ''}</div>`;
+    return `<div class="toolbar">
+      <div class="segmented">
+        <button class="${state.appViewMode === 'table' ? 'active' : ''}" data-action="set-app-view" data-mode="table">${icon('table')} Table</button>
+        <button class="${state.appViewMode === 'kanban' ? 'active' : ''}" data-action="set-app-view" data-mode="kanban">${icon('columns')} Kanban</button>
+      </div>
+      <div class="toolbar-search">
+        ${icon('search')}
+        <input class="input" data-filter="search" value="${attr(f.search)}" placeholder="Search applications..." />
+      </div>
+      <select class="filter-select" data-filter="status">${selectOptions(STATUS_OPTIONS, f.status, 'All statuses')}</select>
+      <select class="filter-select" data-filter="source">${selectOptions(SOURCES, f.source, 'All sources')}</select>
+      <select class="filter-select" data-filter="priority">${selectOptions(PRIORITIES, f.priority, 'Priority')}</select>
+      <button class="btn btn-sm" data-action="open-advanced-filter">${icon('filter')} More filters</button>
+      <select class="filter-select" data-filter="sort">
+        <option value="newest" ${selected(f.sort,'newest')}>Newest</option>
+        <option value="oldest" ${selected(f.sort,'oldest')}>Oldest</option>
+        <option value="updated" ${selected(f.sort,'updated')}>Recently updated</option>
+        <option value="salary" ${selected(f.sort,'salary')}>Highest salary</option>
+        <option value="deadline" ${selected(f.sort,'deadline')}>Upcoming deadline</option>
+      </select>
+      ${Object.values(f).some(v => v && v !== 'newest') ? '<button class="btn btn-quiet btn-sm" data-action="clear-filters">Clear</button>' : ''}
+    </div>`;
   }
   function renderApplications() {
     const apps = filteredApplications();
-    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Applications</h1><p class="page-subtitle">Every opportunity, from saved role to signed offer.</p></div><div class="page-header-actions"><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button></div></div>${renderToolbar()}<div class="results-count" style="margin:-5px 0 12px">${apps.length} of ${state.db.applications.length} application${state.db.applications.length === 1 ? '' : 's'}</div>${state.db.applications.length ? (state.appViewMode === 'kanban' ? renderKanban(apps) : renderApplicationTable(apps)) : noAppsEmpty()}</main>`;
+    return `<main class="page">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Applications</h1>
+          <p class="page-subtitle">Every opportunity, from saved role to signed offer.</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button>
+        </div>
+      </div>
+      ${renderToolbar()}
+      <div class="results-count">${apps.length} of ${state.db.applications.length} application${state.db.applications.length === 1 ? '' : 's'}</div>
+      ${state.db.applications.length ? (state.appViewMode === 'kanban' ? renderKanban(apps) : renderApplicationTable(apps)) : noAppsEmpty()}
+    </main>`;
   }
   function renderApplicationTable(apps) {
-    if (!apps.length) return `<div class="empty-state"><div class="empty-icon">${icon('search')}</div><h3>No matching applications.</h3><p>Try changing or clearing your filters to see more records.</p><button class="btn" data-action="clear-filters">Clear filters</button></div>`;
+    if (!apps.length) return `<div class="empty-state"><div class="empty-icon">${icon('search')}</div><h3>No matching applications</h3><p>Try clearing or modifying your search and filter parameters.</p><button class="btn" data-action="clear-filters">Clear filters</button></div>`;
     return `<section class="card applications-table"><div class="table-wrap"><table><thead><tr><th>Position</th><th>Company</th><th>Source</th><th>Applied date</th><th>Status</th><th>Priority</th><th>Salary</th><th>Next action</th><th></th></tr></thead><tbody>${apps.map(app => {
       const next = primaryActionFor(app);
-      return `<tr class="clickable" data-action="open-detail" data-id="${app.id}"><td><span class="position-title">${e(app.job_title)}</span><span class="sub-position">${e(app.job_type || 'Type not set')} · ${e(app.work_mode || app.location || 'Location not set')}</span></td><td><div class="company-cell"><span class="mini-avatar">${e(initials(appCompanyName(app)))}</span><span>${e(appCompanyName(app))}</span></div></td><td>${sourceLabel(app.source)}</td><td>${e(formatShortDate(app.applied_date))}</td><td>${statusBadge(app.status)}</td><td>${priorityBadge(app.priority)}</td><td>${e(salaryLabel(app))}</td><td>${next ? `<span style="font-size:11px;color:var(--text)">${e(next.label)}<small style="display:block;color:var(--text-faint);margin-top:2px">${e(humanDue(next.date))}</small></span>` : '—'}</td><td><div class="row-actions"><button class="icon-button" data-action="open-detail" data-id="${app.id}" aria-label="Open application">${icon('chevronRight')}</button></div></td></tr>`;
+      return `<tr class="clickable" data-action="open-detail" data-id="${app.id}"><td><span class="position-title">${e(app.job_title)}</span><span class="sub-position">${e(app.job_type || 'Type not set')} · ${e(app.work_mode || app.location || 'Location not set')}</span></td><td><div class="company-cell"><span class="mini-avatar">${e(initials(appCompanyName(app)))}</span><span>${e(appCompanyName(app))}</span></div></td><td>${sourceLabel(app.source)}</td><td>${e(formatShortDate(app.applied_date))}</td><td>${statusBadge(app.status)}</td><td>${priorityBadge(app.priority)}</td><td>${e(salaryLabel(app))}</td><td>${next ? `<span style="font-size:11px;color:var(--text)">${e(next.label)}<small style="display:block;color:var(--text-faint);margin-top:2px">${e(humanDue(next.date))}</small></span>` : '—'}</td><td><div class="row-actions"><button class="icon-button" data-action="open-detail" data-id="${app.id}" aria-label="Open application details">${icon('chevronRight')}</button></div></td></tr>`;
     }).join('')}</tbody></table></div></section>`;
   }
   function renderKanban(filtered) {
     const filteredIds = new Set(filtered.map(a => a.id));
     return `<div class="kanban-board">${STATUS_OPTIONS.map(status => {
       const items = state.db.applications.filter(a => a.status === status && filteredIds.has(a.id));
-      return `<section class="kanban-column" data-kanban-status="${attr(status)}"><header class="kanban-column-header">${statusBadge(status)}<span class="kanban-count">${items.length}</span></header><div class="kanban-cards">${items.length ? items.map(app => renderKanbanCard(app)).join('') : '<div class="drag-hint">Drop an application here</div>'}</div></section>`;
+      return `<section class="kanban-column" data-kanban-status="${attr(status)}"><header class="kanban-column-header">${statusBadge(status)}<span class="kanban-count">${items.length}</span></header><div class="kanban-cards">${items.length ? items.map(app => renderKanbanCard(app)).join('') : '<div class="drag-hint">Drop applications here</div>'}</div></section>`;
     }).join('')}</div>`;
   }
   function renderKanbanCard(app) {
@@ -629,12 +697,11 @@
     const start = new Date(month); start.setDate(1 - start.getDay());
     const cells = Array.from({ length: 42 }, (_, i) => addDays(start, i));
     const events = getCalendarEvents();
-    const monthEvents = events.filter(x => { const d = toDate(x.date); return d && d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear(); });
     const nextEvents = events.filter(x => diffDays(x.date, new Date()) >= 0).slice(0, 7);
     return `<main class="page"><div class="page-header"><div><h1 class="page-title">Calendar</h1><p class="page-subtitle">Interviews, follow-ups, tests, and deadlines in one view.</p></div><div class="page-header-actions"><button class="btn btn-primary" data-action="open-event-modal">${icon('plus')} Add timeline event</button></div></div><div class="calendar-layout"><section class="card calendar-card"><div class="calendar-header"><b class="calendar-title">${e(formatMonth(month))}</b><div class="calendar-control"><button class="icon-button" data-action="calendar-previous" aria-label="Previous month">${icon('chevronLeft')}</button><button class="btn btn-sm" data-action="calendar-today">Today</button><button class="icon-button" data-action="calendar-next" aria-label="Next month">${icon('chevronRight')}</button></div></div><div class="calendar-weekdays"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div><div class="calendar-grid">${cells.map(date => {
       const iso = localDate(date); const cellEvents = events.filter(item => item.date === iso); const isCurrent = date.getMonth() === month.getMonth();
       return `<div class="calendar-day ${isCurrent ? '' : 'muted'} ${isSameDay(date, new Date()) ? 'today' : ''}"><span class="day-number">${date.getDate()}</span>${cellEvents.slice(0, 3).map(ev => `<button class="calendar-event ${e(ev.type)}" title="${attr(ev.title)}" data-action="open-detail" data-id="${ev.appId}">${e(ev.title)}</button>`).join('')}${cellEvents.length > 3 ? `<button class="calendar-more" data-action="open-day-events" data-date="${iso}">+${cellEvents.length - 3} more</button>` : ''}</div>`;
-    }).join('')}</div><div class="calendar-legend"><span><i class="legend-dot" style="background:var(--accent)"></i>Activity</span><span><i class="legend-dot" style="background:var(--success)"></i>Interview</span><span><i class="legend-dot" style="background:var(--violet)"></i>Test</span><span><i class="legend-dot" style="background:var(--warning)"></i>Follow-up</span><span><i class="legend-dot" style="background:var(--danger)"></i>Deadline</span></div></section><aside class="card calendar-side"><div class="card-header"><div><h2 class="card-title">Upcoming</h2><div class="card-subtitle">Your next scheduled items</div></div></div><div class="calendar-side-list">${nextEvents.length ? nextEvents.map(ev => `<button class="calendar-side-item" data-action="open-detail" data-id="${ev.appId}"><span class="calendar-side-date">${e(formatShortDate(ev.date))}</span><span class="calendar-side-info"><b>${e(ev.title)}</b><span>${e(appCompanyName(getApplication(ev.appId)))}</span></span></button>`).join('') : '<div class="empty-inline">No future events yet.</div>'}</div></aside></div></main>`;
+    }).join('')}</div><div class="calendar-legend"><span><i class="legend-dot" style="background:var(--accent)"></i>Activity</span><span><i class="legend-dot" style="background:var(--success)"></i>Interview</span><span><i class="legend-dot" style="background:var(--violet)"></i>Test</span><span><i class="legend-dot" style="background:var(--warning)"></i>Follow-up</span><span><i class="legend-dot" style="background:var(--danger)"></i>Deadline</span></div></section><aside class="card calendar-side"><div class="card-header"><div><h2 class="card-title">Upcoming</h2><div class="card-subtitle">Scheduled items</div></div></div><div class="calendar-side-list">${nextEvents.length ? nextEvents.map(ev => `<button class="calendar-side-item" data-action="open-detail" data-id="${ev.appId}"><span class="calendar-side-date">${e(formatShortDate(ev.date))}</span><span class="calendar-side-info"><b>${e(ev.title)}</b><span>${e(appCompanyName(getApplication(ev.appId)))}</span></span></button>`).join('') : '<div class="empty-inline">No future events scheduled.</div>'}</div></aside></div></main>`;
   }
 
   // ---------- Analytics ----------
@@ -644,7 +711,7 @@
   }
   function barChart(items, color = 'var(--accent)') {
     const max = Math.max(...items.map(x => x.count), 1);
-    return `<div class="chart-area">${items.map(item => `<div class="bar-col"><span class="bar-value">${item.count || ''}</span><i class="bar" style="height:${Math.max(item.count ? (item.count / max) * 80 : 1, 1)}%;background:${color}"></i><span class="bar-label" title="${attr(item.label)}">${e(item.label)}</span></div>`).join('')}</div>`;
+    return `<div class="chart-area">${items.map(item => `<div class="bar-col"><span class="bar-value">${item.count || ''}</span><i class="bar" style="height:${Math.max(item.count ? (item.count / max) * 80 : 2, 2)}%;background:${color}"></i><span class="bar-label" title="${attr(item.label)}">${e(item.label)}</span></div>`).join('')}</div>`;
   }
   function distribution(items, color = 'var(--accent)') {
     const max = Math.max(...items.map(x => x[1]), 1);
@@ -654,18 +721,17 @@
     const data = analyticsData();
     const sourceEntries = Object.entries(data.sources).sort((a, b) => b[1] - a[1]);
     const categoryEntries = Object.entries(data.categories).sort((a, b) => b[1] - a[1]);
-    const locationEntries = Object.entries(data.locations).sort((a, b) => b[1] - a[1]);
     const salaryEntries = Object.entries(data.salaryRanges);
     const monthlyApps = state.db.applications.filter(a => a.applied_date && toDate(a.applied_date).getMonth() === new Date().getMonth() && toDate(a.applied_date).getFullYear() === new Date().getFullYear()).length;
     const avgWeek = state.db.applications.length ? (weeklySeries().reduce((sum, x) => sum + x.count, 0) / 8).toFixed(1) : '0';
     const insights = [];
     if (data.bestSource) {
       const sourceInterviews = state.db.applications.filter(a => a.source === data.bestSource[0] && ['Interview', 'Technical Test', 'Final Interview', 'Offer', 'Hired'].includes(a.status)).length;
-      insights.push(`${data.bestSource[0]} generated ${data.bestSource[1]} application${data.bestSource[1] === 1 ? '' : 's'}${sourceInterviews ? ` and ${sourceInterviews} interview${sourceInterviews === 1 ? '' : 's'}` : ''}.`);
+      insights.push(`${data.bestSource[0]} accounts for ${data.bestSource[1]} application${data.bestSource[1] === 1 ? '' : 's'}${sourceInterviews ? ` and ${sourceInterviews} interview${sourceInterviews === 1 ? '' : 's'}` : ''}.`);
     }
-    if (data.averageResponse !== null) insights.push(`Average response time: ${data.averageResponse.toFixed(1)} days.`);
-    if (categoryEntries[0]) insights.push(`Most applications are for ${categoryEntries[0][0]} roles.`);
-    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Analytics</h1><p class="page-subtitle">Useful signals calculated only from your tracked applications.</p></div><div class="page-header-actions"><button class="btn" data-action="export-data">${icon('download')} Export data</button></div></div>${!data.apps.length ? noAppsEmpty() : `<section class="metrics-grid" style="grid-template-columns:repeat(5,minmax(0,1fr))"><article class="metric-card"><div class="metric-label">Applications this month</div><div class="metric-value">${monthlyApps}</div><div class="metric-foot">From applied dates</div></article><article class="metric-card"><div class="metric-label">Interview conversion</div><div class="metric-value">${data.interviewRate}%</div><div class="metric-foot">Of submitted applications</div></article><article class="metric-card"><div class="metric-label">Offer conversion</div><div class="metric-value">${data.offerRate}%</div><div class="metric-foot">Of submitted applications</div></article><article class="metric-card"><div class="metric-label">Average per week</div><div class="metric-value">${avgWeek}</div><div class="metric-foot">Last 8 weeks</div></article><article class="metric-card"><div class="metric-label">Active opportunities</div><div class="metric-value">${activeApplications().length}</div><div class="metric-foot">Not closed or saved</div></article></section><div class="analytics-grid">${card('Applications per week', barChart(weeklySeries()), { subtitle: 'Based on date applied' })}${card('Applications by platform', distribution(sourceEntries), { subtitle: 'Where roles are coming from' })}${card('Conversion metrics', `<div class="kpi-list"><div class="kpi-row"><span>Response rate</span><b>${data.responseRate}%</b></div><div class="kpi-row"><span>Interview conversion</span><b>${data.interviewRate}%</b></div><div class="kpi-row"><span>Offer conversion</span><b>${data.offerRate}%</b></div><div class="kpi-row"><span>Rejection rate</span><b>${data.rejectionRate}%</b></div><div class="kpi-row"><span>Avg. days before response</span><b>${data.averageResponse === null ? '—' : `${data.averageResponse.toFixed(1)}d`}</b></div></div>`, { subtitle: 'Actual application outcomes' })}${card('Roles by category', distribution(categoryEntries, 'var(--violet)'), { subtitle: 'Inferred from job titles' })}${card('Salary distribution', distribution(salaryEntries, 'var(--success)'), { subtitle: 'Using listed minimum salary' })}${card('Job Search Insights', `<div class="insight-list">${insights.length ? insights.map((text, i) => `<div class="insight-item"><span class="insight-icon">${icon(['target','clock','briefcase'][i])}</span><span class="insight-text">${e(text)}</span></div>`).join('') : '<div class="empty-inline">Add applications to see calculated insights.</div>'}</div>`, { subtitle: 'No estimated or invented results' })}</div>`}</main>`;
+    if (data.averageResponse !== null) insights.push(`Average turnaround to first response: ${data.averageResponse.toFixed(1)} days.`);
+    if (categoryEntries[0]) insights.push(`Primary focus area: ${categoryEntries[0][0]} roles.`);
+    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Analytics</h1><p class="page-subtitle">Reliable performance metrics derived solely from your tracked applications.</p></div><div class="page-header-actions"><button class="btn" data-action="export-data">${icon('download')} Export data</button></div></div>${!data.apps.length ? noAppsEmpty() : `<section class="metrics-grid" style="grid-template-columns:repeat(5,minmax(0,1fr))"><article class="metric-card"><div class="metric-label">Applications this month</div><div class="metric-value">${monthlyApps}</div><div class="metric-foot">Submitted this calendar month</div></article><article class="metric-card"><div class="metric-label">Interview conversion</div><div class="metric-value">${data.interviewRate}%</div><div class="metric-foot">Of submitted applications</div></article><article class="metric-card"><div class="metric-label">Offer conversion</div><div class="metric-value">${data.offerRate}%</div><div class="metric-foot">Of submitted applications</div></article><article class="metric-card"><div class="metric-label">Average per week</div><div class="metric-value">${avgWeek}</div><div class="metric-foot">Trailing 8 weeks</div></article><article class="metric-card"><div class="metric-label">Active opportunities</div><div class="metric-value">${activeApplications().length}</div><div class="metric-foot">In pipeline stages</div></article></section><div class="analytics-grid">${card('Applications per week', barChart(weeklySeries()), { subtitle: 'Based on date applied' })}${card('Applications by platform', distribution(sourceEntries), { subtitle: 'Channel distribution' })}${card('Conversion outcomes', `<div class="kpi-list"><div class="kpi-row"><span>Response rate</span><b>${data.responseRate}%</b></div><div class="kpi-row"><span>Interview conversion</span><b>${data.interviewRate}%</b></div><div class="kpi-row"><span>Offer conversion</span><b>${data.offerRate}%</b></div><div class="kpi-row"><span>Rejection rate</span><b>${data.rejectionRate}%</b></div><div class="kpi-row"><span>Avg. days to response</span><b>${data.averageResponse === null ? '—' : `${data.averageResponse.toFixed(1)}d`}</b></div></div>`, { subtitle: 'Actual application milestones' })}${card('Roles by category', distribution(categoryEntries, 'var(--violet)'), { subtitle: 'Inferred from job titles' })}${card('Salary distribution', distribution(salaryEntries, 'var(--success)'), { subtitle: 'Using listed minimum salary' })}${card('Calculated search insights', `<div class="insight-list">${insights.length ? insights.map((text, i) => `<div class="insight-item"><span class="insight-icon">${icon(['target','clock','briefcase'][i])}</span><span class="insight-text">${e(text)}</span></div>`).join('') : '<div class="empty-inline">Add applications to see calculated insights.</div>'}</div>`, { subtitle: 'Based on your real records' })}</div>`}</main>`;
   }
 
   // ---------- Companies ----------
@@ -679,13 +745,13 @@
   }
   function renderCompanies() {
     const records = companiesWithStats();
-    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Companies</h1><p class="page-subtitle">See every touchpoint and opportunity by company.</p></div><div class="page-header-actions"><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button></div></div>${records.length ? `<section class="company-grid">${records.map(({ company, apps, recent, current }) => `<button class="company-card" data-action="open-company" data-id="${company.id}"><span class="company-card-head"><span class="avatar company">${e(initials(company.name))}</span><span><h3>${e(company.name)}</h3><span class="company-industry">${e(company.industry || 'Industry not set')} · ${e(company.location || 'Location not set')}</span></span></span><span class="company-stat-grid"><span class="company-stat"><b>${apps.length}</b><span>application${apps.length === 1 ? '' : 's'}</span></span><span class="company-stat"><b>${current ? e(current.status) : '—'}</b><span>current status</span></span></span><span class="company-card-foot"><span>Last interaction: ${e(recent ? formatShortDate(recent) : '—')}</span>${icon('chevronRight')}</span></button>`).join('')}</section>` : `<div class="empty-state"><div class="empty-icon">${icon('company')}</div><h3>No companies yet.</h3><p>Companies are created automatically when you add your first application.</p><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button></div>`}</main>`;
+    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Companies</h1><p class="page-subtitle">Track touchpoints, recruiter contacts, and activity by organization.</p></div><div class="page-header-actions"><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button></div></div>${records.length ? `<section class="company-grid">${records.map(({ company, apps, recent, current }) => `<button class="company-card" data-action="open-company" data-id="${company.id}"><span class="company-card-head"><span class="avatar company">${e(initials(company.name))}</span><span><h3>${e(company.name)}</h3><span class="company-industry">${e(company.industry || 'Industry not set')} · ${e(company.location || 'Location not set')}</span></span></span><span class="company-stat-grid"><span class="company-stat"><b>${apps.length}</b><span>application${apps.length === 1 ? '' : 's'}</span></span><span class="company-stat"><b>${current ? e(current.status) : '—'}</b><span>current status</span></span></span><span class="company-card-foot"><span>Latest activity: ${e(recent ? formatShortDate(recent) : '—')}</span>${icon('chevronRight')}</span></button>`).join('')}</section>` : `<div class="empty-state"><div class="empty-icon">${icon('company')}</div><h3>No companies yet</h3><p>Companies are automatically cataloged when you add your applications.</p><button class="btn btn-primary" data-action="open-application-modal">${icon('plus')} Add application</button></div>`}</main>`;
   }
 
   // ---------- Saved jobs ----------
   function renderSavedJobs() {
     const jobs = [...state.db.saved_jobs].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Saved jobs</h1><p class="page-subtitle">Shortlist opportunities before you are ready to apply.</p></div><div class="page-header-actions"><button class="btn btn-primary" data-action="open-saved-job-modal">${icon('plus')} Save a job</button></div></div>${jobs.length ? `<section class="saved-list">${jobs.map(job => { const company = getCompany(job.company_id); return `<article class="saved-job"><div><div class="saved-job-title">${e(job.job_title)}</div><div class="saved-job-company">${e(company?.name || job.company_name || 'Unknown company')} · ${sourceLabel(job.source)}</div></div><div class="saved-data"><div class="saved-label">Salary</div><div class="saved-value">${e(salaryLabel(job))}</div></div><div class="saved-data"><div class="saved-label">Deadline</div><div class="saved-value">${e(job.deadline ? `${formatShortDate(job.deadline)} · ${humanDue(job.deadline)}` : 'Not set')}</div></div><div class="saved-data"><div class="saved-label">Priority</div><div class="saved-value">${priorityBadge(job.priority || 'Medium')} ${job.status === 'Applied' ? statusBadge('Applied') : ''}</div></div><div class="saved-actions">${job.status === 'Applied' ? `<button class="btn btn-sm" data-action="open-detail" data-id="${job.application_id}">Open application</button>` : `<button class="btn btn-primary btn-sm" data-action="convert-saved-job" data-id="${job.id}">Apply now</button>`}<button class="icon-button" data-action="edit-saved-job" data-id="${job.id}" aria-label="Edit saved job">${icon('edit')}</button><button class="icon-button" data-action="delete-saved-job" data-id="${job.id}" aria-label="Delete saved job">${icon('trash')}</button></div></article>`; }).join('')}</section>` : `<div class="empty-state"><div class="empty-icon">${icon('bookmark')}</div><h3>No saved jobs yet.</h3><p>Save roles you want to review, then turn them into an application when you are ready.</p><button class="btn btn-primary" data-action="open-saved-job-modal">${icon('plus')} Save a job</button></div>`}</main>`;
+    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Saved jobs</h1><p class="page-subtitle">Shortlist opportunities before you submit an application.</p></div><div class="page-header-actions"><button class="btn btn-primary" data-action="open-saved-job-modal">${icon('plus')} Save a job</button></div></div>${jobs.length ? `<section class="saved-list">${jobs.map(job => { const company = getCompany(job.company_id); return `<article class="saved-job"><div><div class="saved-job-title">${e(job.job_title)}</div><div class="saved-job-company">${e(company?.name || job.company_name || 'Unknown company')} · ${sourceLabel(job.source)}</div></div><div class="saved-data"><div class="saved-label">Salary</div><div class="saved-value">${e(salaryLabel(job))}</div></div><div class="saved-data"><div class="saved-label">Deadline</div><div class="saved-value">${e(job.deadline ? `${formatShortDate(job.deadline)} · ${humanDue(job.deadline)}` : 'Not set')}</div></div><div class="saved-data"><div class="saved-label">Priority</div><div class="saved-value">${priorityBadge(job.priority || 'Medium')} ${job.status === 'Applied' ? statusBadge('Applied') : ''}</div></div><div class="saved-actions">${job.status === 'Applied' ? `<button class="btn btn-sm" data-action="open-detail" data-id="${job.application_id}">Open application</button>` : `<button class="btn btn-primary btn-sm" data-action="convert-saved-job" data-id="${job.id}">Apply now</button>`}<button class="icon-button" data-action="edit-saved-job" data-id="${job.id}" aria-label="Edit saved job">${icon('edit')}</button><button class="icon-button" data-action="delete-saved-job" data-id="${job.id}" aria-label="Delete saved job">${icon('trash')}</button></div></article>`; }).join('')}</section>` : `<div class="empty-state"><div class="empty-icon">${icon('bookmark')}</div><h3>No saved jobs yet</h3><p>Keep a shortlist of roles to review, then turn them into live applications with one click.</p><button class="btn btn-primary" data-action="open-saved-job-modal">${icon('plus')} Save a job</button></div>`}</main>`;
   }
 
   // ---------- Detail ----------
@@ -696,13 +762,13 @@
     const events = sortedEvents(app.id);
     const reminders = state.db.reminders.filter(r => r.application_id === app.id && !r.completed).sort((a, b) => a.reminder_date.localeCompare(b.reminder_date));
     const attachmentRows = (app.attachments || []).map((x, i) => `<div class="resource-row">${icon('paperclip')}<span>${e(typeof x === 'string' ? x : x.name)}</span><button class="btn btn-quiet btn-sm" data-action="remove-attachment" data-id="${app.id}" data-index="${i}">Remove</button></div>`).join('');
-    return `<main class="page detail-page"><button class="back-link" data-action="back-applications">${icon('chevronLeft')} Back to applications</button><section class="detail-header"><div class="detail-identity"><span class="avatar">${e(initials(company.name))}</span><div><div class="detail-eyebrow">${e(company.name)}${company.industry ? ` · ${e(company.industry)}` : ''}</div><h1 class="detail-title">${e(app.job_title)}</h1><div style="margin-top:8px">${statusBadge(app.status)} ${priorityBadge(app.priority)}</div></div></div><div class="detail-actions"><button class="btn" data-action="open-event-modal" data-id="${app.id}">${icon('plus')} Add event</button><button class="btn" data-action="open-application-modal" data-id="${app.id}">${icon('edit')} Edit</button><button class="btn btn-danger" data-action="delete-application" data-id="${app.id}">${icon('trash')} Delete</button></div></section><div class="detail-layout"><div class="detail-stack">${card('Application timeline', `<div class="timeline">${events.length ? events.map(ev => `<div class="timeline-item"><span class="timeline-date">${e(formatDate(ev.event_date))}</span><span class="timeline-track"><i class="timeline-dot"></i></span><span class="timeline-content"><b>${e(ev.title || ev.event_type)}</b>${ev.description ? `<span>${e(ev.description)}</span>` : ''}</span></div>`).join('') : '<div class="empty-inline">No timeline events yet.</div>'}</div>`, { subtitle: 'Add every meaningful touchpoint', action: `<button class="card-link" data-action="open-event-modal" data-id="${app.id}">Add event</button>` })}${card('Job description', `<div class="detail-info"><div class="note-block">${app.job_description ? e(app.job_description) : '<span style="color:var(--text-faint)">No job description added.</span>'}</div></div>`, { action: `<button class="card-link" data-action="open-application-modal" data-id="${app.id}">Edit</button>` })}${card('Requirements', `<div class="detail-info"><div class="note-block">${app.requirements ? e(app.requirements) : '<span style="color:var(--text-faint)">No requirements added.</span>'}</div></div>`, { action: `<button class="card-link" data-action="open-application-modal" data-id="${app.id}">Edit</button>` })}${card('Notes', `<div class="detail-info"><div class="note-block">${app.notes ? e(app.notes) : '<span style="color:var(--text-faint)">No notes added.</span>'}</div></div>`, { action: `<button class="card-link" data-action="open-application-modal" data-id="${app.id}">Edit</button>` })}</div><aside class="detail-stack">${card('Application details', `<div class="detail-info"><div class="info-grid"><div class="info-pair"><label>Applied date</label><div>${e(formatDate(app.applied_date))}</div></div><div class="info-pair"><label>Source</label><div>${sourceLabel(app.source)}</div></div><div class="info-pair"><label>Employment</label><div>${e(app.job_type || '—')}</div></div><div class="info-pair"><label>Work setup</label><div>${e([app.work_mode, app.location].filter(Boolean).join(' · ') || '—')}</div></div><div class="info-pair"><label>Salary</label><div>${e(salaryLabel(app))}</div></div><div class="info-pair"><label>Deadline</label><div>${e(app.deadline ? `${formatDate(app.deadline)} (${humanDue(app.deadline)})` : '—')}</div></div><div class="info-pair"><label>Job URL</label>${app.job_url ? `<a href="${attr(app.job_url)}" target="_blank" rel="noopener">Open job posting ${icon('external')}</a>` : '<div>—</div>'}</div><div class="info-pair"><label>Next follow-up</label><div>${e(app.next_followup ? `${formatDate(app.next_followup)} (${humanDue(app.next_followup)})` : '—')}</div></div></div></div>`)}${card('Recruiter', `<div class="detail-info"><div class="info-grid"><div class="info-pair"><label>Name</label><div>${e(app.recruiter_name || 'Not added')}</div></div><div class="info-pair"><label>Contact</label><div>${e(app.recruiter_contact || 'Not added')}</div></div></div></div>`)}${card('Interview details', `<div class="detail-info"><div class="note-block">${app.interview_details ? e(app.interview_details) : '<span style="color:var(--text-faint)">No interview details added.</span>'}</div></div>`)}${card('Reminders', `<div class="resource-list">${reminders.length ? reminders.map(reminder => `<div class="resource-row">${icon('bell')}<span>${e(reminder.reminder_type || 'Reminder')} · ${e(formatDate(reminder.reminder_date))} (${e(humanDue(reminder.reminder_date))})</span><button class="btn btn-quiet btn-sm" data-action="complete-reminder" data-id="${reminder.id}">Complete</button></div>`).join('') : '<div class="empty-inline">No active reminders.</div>'}</div>`, { action: `<button class="card-link" data-action="open-reminder-modal" data-id="${app.id}">Add reminder</button>` })}${card('Files & materials', `<div class="resource-list">${app.resume_used ? `<div class="resource-row">${icon('file')}<span>Resume · ${e(app.resume_used)}</span></div>` : ''}${app.cover_letter_used ? `<div class="resource-row">${icon('file')}<span>Cover letter · ${e(app.cover_letter_used)}</span></div>` : ''}${attachmentRows || (!app.resume_used && !app.cover_letter_used ? '<div class="empty-inline">No materials attached.</div>' : '')}</div>`, { action: `<button class="card-link" data-action="open-attachment-modal" data-id="${app.id}">Add attachment</button>` })}</aside></div></main>`;
+    return `<main class="page detail-page"><button class="back-link" data-action="back-applications">${icon('chevronLeft')} Back to applications</button><section class="detail-header"><div class="detail-identity"><span class="avatar">${e(initials(company.name))}</span><div><div class="detail-eyebrow">${e(company.name)}${company.industry ? ` · ${e(company.industry)}` : ''}</div><h1 class="detail-title">${e(app.job_title)}</h1><div style="margin-top:8px">${statusBadge(app.status)} ${priorityBadge(app.priority)}</div></div></div><div class="detail-actions"><button class="btn" data-action="open-event-modal" data-id="${app.id}">${icon('plus')} Add event</button><button class="btn" data-action="open-application-modal" data-id="${app.id}">${icon('edit')} Edit</button><button class="btn btn-danger" data-action="delete-application" data-id="${app.id}">${icon('trash')} Delete</button></div></section><div class="detail-layout"><div class="detail-stack">${card('Application timeline', `<div class="timeline">${events.length ? events.map(ev => `<div class="timeline-item"><span class="timeline-date">${e(formatDate(ev.event_date))}</span><span class="timeline-track"><i class="timeline-dot"></i></span><span class="timeline-content"><b>${e(ev.title || ev.event_type)}</b>${ev.description ? `<span>${e(ev.description)}</span>` : ''}</span></div>`).join('') : '<div class="empty-inline">No timeline events yet.</div>'}</div>`, { subtitle: 'Key dates, interviews, and status updates', action: `<button class="card-link" data-action="open-event-modal" data-id="${app.id}">Add event</button>` })}${card('Job description', `<div class="detail-info"><div class="note-block">${app.job_description ? e(app.job_description) : '<span style="color:var(--text-faint)">No job description provided.</span>'}</div></div>`, { action: `<button class="card-link" data-action="open-application-modal" data-id="${app.id}">Edit</button>` })}${card('Requirements', `<div class="detail-info"><div class="note-block">${app.requirements ? e(app.requirements) : '<span style="color:var(--text-faint)">No requirements listed.</span>'}</div></div>`, { action: `<button class="card-link" data-action="open-application-modal" data-id="${app.id}">Edit</button>` })}${card('Notes', `<div class="detail-info"><div class="note-block">${app.notes ? e(app.notes) : '<span style="color:var(--text-faint)">No notes added.</span>'}</div></div>`, { action: `<button class="card-link" data-action="open-application-modal" data-id="${app.id}">Edit</button>` })}</div><aside class="detail-stack">${card('Application details', `<div class="detail-info"><div class="info-grid"><div class="info-pair"><label>Applied date</label><div>${e(formatDate(app.applied_date))}</div></div><div class="info-pair"><label>Source</label><div>${sourceLabel(app.source)}</div></div><div class="info-pair"><label>Employment</label><div>${e(app.job_type || '—')}</div></div><div class="info-pair"><label>Work setup</label><div>${e([app.work_mode, app.location].filter(Boolean).join(' · ') || '—')}</div></div><div class="info-pair"><label>Salary</label><div>${e(salaryLabel(app))}</div></div><div class="info-pair"><label>Deadline</label><div>${e(app.deadline ? `${formatDate(app.deadline)} (${humanDue(app.deadline)})` : '—')}</div></div><div class="info-pair"><label>Job URL</label>${app.job_url ? `<a href="${attr(app.job_url)}" target="_blank" rel="noopener">Open job posting ${icon('external')}</a>` : '<div>—</div>'}</div><div class="info-pair"><label>Next follow-up</label><div>${e(app.next_followup ? `${formatDate(app.next_followup)} (${humanDue(app.next_followup)})` : '—')}</div></div></div></div>`)}${card('Recruiter details', `<div class="detail-info"><div class="info-grid"><div class="info-pair"><label>Name</label><div>${e(app.recruiter_name || 'Not added')}</div></div><div class="info-pair"><label>Contact</label><div>${e(app.recruiter_contact || 'Not added')}</div></div></div></div>`)}${card('Interview details', `<div class="detail-info"><div class="note-block">${app.interview_details ? e(app.interview_details) : '<span style="color:var(--text-faint)">No interview details logged.</span>'}</div></div>`)}${card('Reminders', `<div class="resource-list">${reminders.length ? reminders.map(reminder => `<div class="resource-row">${icon('bell')}<span>${e(reminder.reminder_type || 'Reminder')} · ${e(formatDate(reminder.reminder_date))} (${e(humanDue(reminder.reminder_date))})</span><button class="btn btn-quiet btn-sm" data-action="complete-reminder" data-id="${reminder.id}">Complete</button></div>`).join('') : '<div class="empty-inline">No active reminders.</div>'}</div>`, { action: `<button class="card-link" data-action="open-reminder-modal" data-id="${app.id}">Add reminder</button>` })}${card('Files & materials', `<div class="resource-list">${app.resume_used ? `<div class="resource-row">${icon('file')}<span>Resume · ${e(app.resume_used)}</span></div>` : ''}${app.cover_letter_used ? `<div class="resource-row">${icon('file')}<span>Cover letter · ${e(app.cover_letter_used)}</span></div>` : ''}${attachmentRows || (!app.resume_used && !app.cover_letter_used ? '<div class="empty-inline">No materials attached.</div>' : '')}</div>`, { action: `<button class="card-link" data-action="open-attachment-modal" data-id="${app.id}">Add attachment</button>` })}</aside></div></main>`;
   }
 
   // ---------- Settings ----------
   function renderSettings() {
     const dark = state.db.meta.theme === 'dark';
-    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Settings</h1><p class="page-subtitle">Personalize and manage your JobTrack workspace.</p></div></div><div class="settings-layout"><section class="card"><div class="settings-section"><h2 class="setting-title">Appearance</h2><p class="setting-copy">A quiet workspace that adapts to the way you like to work.</p><div class="setting-row"><div class="setting-row-text"><b>Dark mode</b><span>Use a dark neutral theme across JobTrack.</span></div><button class="toggle ${dark ? 'active' : ''}" data-action="toggle-theme" aria-label="Toggle dark mode"><span></span></button></div></div><div class="settings-section"><h2 class="setting-title">Data</h2><p class="setting-copy">Your records live locally in this browser. Export a backup anytime.</p><div class="setting-row"><div class="setting-row-text"><b>Export workspace</b><span>Download applications, companies, events, saved jobs, and reminders as JSON.</span></div><button class="btn btn-sm" data-action="export-data">${icon('download')} Export</button></div><div class="setting-row"><div class="setting-row-text"><b>Clear demo data</b><span>Remove only clearly marked starter records and retain anything you added.</span></div><button class="btn btn-sm" data-action="clear-demo" ${hasSeedData() ? '' : 'disabled'}>${icon('trash')} Remove</button></div></div></section><aside class="card"><div class="settings-section"><h2 class="setting-title">Workspace summary</h2><p class="setting-copy">Stored locally, without a connected cloud account.</p><div class="kpi-list" style="padding:15px 0 0"><div class="kpi-row"><span>Applications</span><b>${state.db.applications.length}</b></div><div class="kpi-row"><span>Companies</span><b>${state.db.companies.length}</b></div><div class="kpi-row"><span>Timeline events</span><b>${state.db.application_events.length}</b></div><div class="kpi-row"><span>Active reminders</span><b>${state.db.reminders.filter(r=>!r.completed).length}</b></div></div></div><div class="settings-section"><h2 class="setting-title">Start over</h2><p class="setting-copy">Restore the original preview workspace. This replaces all current local data.</p><button class="btn btn-danger" style="margin-top:14px" data-action="reset-workspace">${icon('refresh')} Reset workspace</button></div></aside></div></main>`;
+    return `<main class="page"><div class="page-header"><div><h1 class="page-title">Settings</h1><p class="page-subtitle">Configure preferences and manage your local JobTrack data.</p></div></div><div class="settings-layout"><section class="card"><div class="settings-section"><h2 class="setting-title">Appearance</h2><p class="setting-copy">Clean minimal visual theme designed for comfortable daily tracking.</p><div class="setting-row"><div class="setting-row-text"><b>Dark mode</b><span>Use dark slate palette across all dashboard pages.</span></div><button class="toggle ${dark ? 'active' : ''}" data-action="toggle-theme" aria-label="Toggle dark mode"><span></span></button></div></div><div class="settings-section"><h2 class="setting-title">Data management</h2><p class="setting-copy">Your records are saved privately in your browser. Export or restore backups at any time.</p><div class="setting-row"><div class="setting-row-text"><b>Export workspace</b><span>Download applications, companies, events, and reminders as JSON.</span></div><button class="btn btn-sm" data-action="export-data">${icon('download')} Export</button></div><div class="setting-row"><div class="setting-row-text"><b>Import workspace</b><span>Restore your tracker from a previously exported JSON backup file.</span></div><label class="btn btn-sm" style="margin:0;cursor:pointer">${icon('upload')} Import<input type="file" accept=".json" data-action="import-data-input" style="display:none" /></label></div><div class="setting-row"><div class="setting-row-text"><b>Clear demo data</b><span>Remove starter records while keeping everything you created.</span></div><button class="btn btn-sm" data-action="clear-demo" ${hasSeedData() ? '' : 'disabled'}>${icon('trash')} Remove</button></div></div></section><aside class="card"><div class="settings-section"><h2 class="setting-title">Workspace summary</h2><p class="setting-copy">Stored locally in browser localStorage.</p><div class="kpi-list" style="padding:14px 0 0"><div class="kpi-row"><span>Applications</span><b>${state.db.applications.length}</b></div><div class="kpi-row"><span>Companies</span><b>${state.db.companies.length}</b></div><div class="kpi-row"><span>Timeline events</span><b>${state.db.application_events.length}</b></div><div class="kpi-row"><span>Active reminders</span><b>${state.db.reminders.filter(r=>!r.completed).length}</b></div></div></div><div class="settings-section"><h2 class="setting-title">Start fresh</h2><p class="setting-copy">Reset all data back to original preview demonstration.</p><button class="btn btn-danger" style="margin-top:14px" data-action="reset-workspace">${icon('refresh')} Reset workspace</button></div></aside></div></main>`;
   }
 
   // ---------- Modal factories ----------
@@ -723,17 +789,17 @@
     const existing = appId ? getApplication(appId) : null;
     const app = existing || { company_name: '', job_title: '', job_type: 'Full-time', work_mode: 'Hybrid', location: '', source: 'LinkedIn', job_url: '', applied_date: localDate(), salary_min: '', salary_max: '', recruiter_name: '', recruiter_contact: '', status: 'Applied', priority: 'Medium', deadline: '', next_followup: '', notes: '', job_description: '', requirements: '', interview_details: '', resume_used: '', cover_letter_used: '' };
     const comp = existing ? getCompany(existing.company_id) : null;
-    openModal(`<form class="modal" data-form="application" novalidate>${modalHeader(existing ? 'Edit application' : 'Add application', existing ? 'Update the record and keep your pipeline accurate.' : 'Capture an opportunity in under a minute.')}<div class="modal-body"><input type="hidden" name="id" value="${attr(existing?.id || '')}"><div class="form-section-title first">Role</div><div class="form-grid">${field('Company name', 'company_name', comp?.name || app.company_name, 'text', { required: true, placeholder: 'e.g. Acme Studio' })}${field('Job title', 'job_title', app.job_title, 'text', { required: true, placeholder: 'e.g. Product Designer' })}${field('Job type', 'job_type', app.job_type, 'select', { options: selectOptions(JOB_TYPES, app.job_type, 'Select job type') })}${field('Work location', 'work_mode', app.work_mode, 'select', { options: selectOptions(WORK_MODES, app.work_mode, 'Select work mode') })}${field('City', 'location', app.location, 'text', { placeholder: 'e.g. Jakarta' })}${field('Source', 'source', app.source, 'select', { options: selectOptions(SOURCES, app.source, 'Select source') })}${field('Job URL', 'job_url', app.job_url, 'url', { span: true, placeholder: 'https://…' })}</div><div class="form-section-title">Application</div><div class="form-grid">${field('Applied date', 'applied_date', app.applied_date, 'date')}${field('Current status', 'status', app.status, 'select', { options: selectOptions(STATUS_OPTIONS, app.status, 'Select status') })}${field('Salary min (monthly)', 'salary_min', app.salary_min, 'number', { min: 0, placeholder: 'e.g. 8000000' })}${field('Salary max (monthly)', 'salary_max', app.salary_max, 'number', { min: 0, placeholder: 'e.g. 12000000' })}${field('Priority', 'priority', app.priority, 'select', { options: selectOptions(PRIORITIES, app.priority, 'Select priority') })}${field('Deadline', 'deadline', app.deadline, 'date')}${field('Contact / recruiter', 'recruiter_name', app.recruiter_name, 'text', { placeholder: 'Name' })}${field('Recruiter contact', 'recruiter_contact', app.recruiter_contact, 'text', { placeholder: 'Email, phone, or social handle' })}${field('Next follow-up date', 'next_followup', app.next_followup, 'date')}${field('Interview details', 'interview_details', app.interview_details, 'text', { placeholder: 'Date, time, link, or agenda' })}${field('Notes', 'notes', app.notes, 'textarea', { span: true, placeholder: 'Context, talking points, and anything to remember' })}</div><div class="form-section-title">Job details & materials</div><div class="form-grid">${field('Job description', 'job_description', app.job_description, 'textarea', { span: true, placeholder: 'A concise description of the role' })}${field('Requirements', 'requirements', app.requirements, 'textarea', { span: true, placeholder: 'Skills, experience, and qualifications' })}${field('Resume used', 'resume_used', app.resume_used, 'text', { placeholder: 'e.g. CV — Frontend.pdf' })}${field('Cover letter used', 'cover_letter_used', app.cover_letter_used, 'text', { placeholder: 'e.g. Acme cover letter.pdf' })}</div><label class="checkbox-row"><input type="checkbox" name="set_reminder" ${checked(!existing && !!app.next_followup)}> Set reminder</label><div class="form-grid" style="margin-top:10px">${field('Reminder date', 'reminder_date', app.next_followup || '', 'date', { helper: 'Only created when “Set reminder” is checked.' })}${field('Reminder type', 'reminder_type', 'Follow-up', 'select', { options: selectOptions(['Follow-up', 'Interview', 'Technical Test', 'Deadline', 'Other'], 'Follow-up', 'Select type') })}</div></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing ? 'Save changes' : 'Add application'}</button></div></form>`);
+    openModal(`<form class="modal" data-form="application" novalidate>${modalHeader(existing ? 'Edit application' : 'Add application', existing ? 'Update the record to keep your pipeline current.' : 'Record an opportunity in your tracker.')}<div class="modal-body"><input type="hidden" name="id" value="${attr(existing?.id || '')}"><div class="form-section-title first">Role information</div><div class="form-grid">${field('Company name', 'company_name', comp?.name || app.company_name, 'text', { required: true, placeholder: 'e.g. Acme Studio' })}${field('Job title', 'job_title', app.job_title, 'text', { required: true, placeholder: 'e.g. Frontend Engineer' })}${field('Job type', 'job_type', app.job_type, 'select', { options: selectOptions(JOB_TYPES, app.job_type, 'Select job type') })}${field('Work location', 'work_mode', app.work_mode, 'select', { options: selectOptions(WORK_MODES, app.work_mode, 'Select work mode') })}${field('City', 'location', app.location, 'text', { placeholder: 'e.g. Jakarta' })}${field('Source', 'source', app.source, 'select', { options: selectOptions(SOURCES, app.source, 'Select source') })}${field('Job posting URL', 'job_url', app.job_url, 'url', { span: true, placeholder: 'https://…' })}</div><div class="form-section-title">Application status & compensation</div><div class="form-grid">${field('Applied date', 'applied_date', app.applied_date, 'date')}${field('Current status', 'status', app.status, 'select', { options: selectOptions(STATUS_OPTIONS, app.status, 'Select status') })}${field('Salary min (monthly)', 'salary_min', app.salary_min, 'number', { min: 0, placeholder: 'e.g. 8000000' })}${field('Salary max (monthly)', 'salary_max', app.salary_max, 'number', { min: 0, placeholder: 'e.g. 12000000' })}${field('Priority', 'priority', app.priority, 'select', { options: selectOptions(PRIORITIES, app.priority, 'Select priority') })}${field('Application deadline', 'deadline', app.deadline, 'date')}${field('Contact / recruiter', 'recruiter_name', app.recruiter_name, 'text', { placeholder: 'Name' })}${field('Recruiter contact', 'recruiter_contact', app.recruiter_contact, 'text', { placeholder: 'Email, phone, or handle' })}${field('Next follow-up date', 'next_followup', app.next_followup, 'date')}${field('Interview details', 'interview_details', app.interview_details, 'text', { placeholder: 'Schedule, links, or contact' })}${field('Notes', 'notes', app.notes, 'textarea', { span: true, placeholder: 'Talking points, requirements, and reminders' })}</div><div class="form-section-title">Role specifications & materials</div><div class="form-grid">${field('Job description', 'job_description', app.job_description, 'textarea', { span: true, placeholder: 'Summary of the job role' })}${field('Requirements', 'requirements', app.requirements, 'textarea', { span: true, placeholder: 'Qualifications and experience' })}${field('Resume version used', 'resume_used', app.resume_used, 'text', { placeholder: 'e.g. CV — Frontend.pdf' })}${field('Cover letter used', 'cover_letter_used', app.cover_letter_used, 'text', { placeholder: 'e.g. CoverLetter.pdf' })}</div><label class="checkbox-row"><input type="checkbox" name="set_reminder" ${checked(!existing && !!app.next_followup)}> Set reminder notification</label><div class="form-grid" style="margin-top:10px">${field('Reminder date', 'reminder_date', app.next_followup || '', 'date', { helper: 'Active only when checkbox is selected.' })}${field('Reminder type', 'reminder_type', 'Follow-up', 'select', { options: selectOptions(['Follow-up', 'Interview', 'Technical Test', 'Deadline', 'Other'], 'Follow-up', 'Select type') })}</div></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('check')} ${existing ? 'Save changes' : 'Add application'}</button></div></form>`);
   }
   function showAdvancedFilterModal() {
     const f = state.filters;
-    openModal(`<form class="modal modal-small" data-form="advanced-filter">${modalHeader('More filters', 'Narrow the applications table or board.')}<div class="modal-body"><div class="form-grid">${field('Job type', 'jobType', f.jobType, 'select', { options: selectOptions(JOB_TYPES, f.jobType, 'All job types') })}${field('Work location', 'workMode', f.workMode, 'select', { options: selectOptions(WORK_MODES, f.workMode, 'All work modes') })}${field('Company', 'company', f.company, 'select', { options: `<option value="">All companies</option>${state.db.companies.sort((a,b)=>a.name.localeCompare(b.name)).map(c => `<option value="${c.id}" ${selected(f.company,c.id)}>${e(c.name)}</option>`).join('')}` })}${field('Applied on or after', 'after', f.after, 'date')}${field('Min salary', 'minSalary', f.minSalary, 'number', { min: 0, placeholder: '0' })}${field('Max salary', 'maxSalary', f.maxSalary, 'number', { min: 0, placeholder: 'No max' })}${field('Applied on or before', 'before', f.before, 'date')}</div></div><div class="modal-footer"><button class="btn" type="button" data-action="clear-filters">Clear all</button><button class="btn btn-primary" type="submit">Apply filters</button></div></form>`);
+    openModal(`<form class="modal modal-small" data-form="advanced-filter">${modalHeader('More filters', 'Refine applications table or board.')}<div class="modal-body"><div class="form-grid">${field('Job type', 'jobType', f.jobType, 'select', { options: selectOptions(JOB_TYPES, f.jobType, 'All job types') })}${field('Work location', 'workMode', f.workMode, 'select', { options: selectOptions(WORK_MODES, f.workMode, 'All work modes') })}${field('Company', 'company', f.company, 'select', { options: `<option value="">All companies</option>${state.db.companies.sort((a,b)=>a.name.localeCompare(b.name)).map(c => `<option value="${c.id}" ${selected(f.company,c.id)}>${e(c.name)}</option>`).join('')}` })}${field('Applied on or after', 'after', f.after, 'date')}${field('Min salary', 'minSalary', f.minSalary, 'number', { min: 0, placeholder: '0' })}${field('Max salary', 'maxSalary', f.maxSalary, 'number', { min: 0, placeholder: 'No max' })}${field('Applied on or before', 'before', f.before, 'date')}</div></div><div class="modal-footer"><button class="btn" type="button" data-action="clear-filters">Clear all</button><button class="btn btn-primary" type="submit">Apply filters</button></div></form>`);
   }
   function showEventModal(appId = null) {
     const candidates = state.db.applications.filter(a => !TERMINAL.has(a.status));
-    if (!candidates.length) { toast('Add an application first', 'Timeline events need an application.'); return; }
+    if (!candidates.length) { toast('Add an application first', 'Timeline events attach to an application.'); return; }
     const defaultId = appId || candidates[0].id;
-    openModal(`<form class="modal modal-small" data-form="event" novalidate>${modalHeader('Add timeline event', 'Log a real interaction, milestone, or scheduled event.')}<div class="modal-body"><div class="form-grid">${field('Application', 'application_id', defaultId, 'select', { required: true, span: true, options: candidates.map(a => `<option value="${a.id}" ${selected(defaultId,a.id)}>${e(appCompanyName(a))} — ${e(a.job_title)}</option>`).join('') })}${field('Event type', 'event_type', 'Interview', 'select', { required: true, options: selectOptions(['Applied', 'Recruiter Viewed', 'Screening', 'Interview', 'Technical Test', 'Final Interview', 'Offer', 'Rejected', 'Other'], 'Interview', 'Select event type') })}${field('Event date', 'event_date', localDate(), 'date', { required: true })}${field('Title', 'title', '', 'text', { required: true, span: true, placeholder: 'e.g. Portfolio interview scheduled' })}${field('Description', 'description', '', 'textarea', { span: true, placeholder: 'Optional details, time, link, or outcome' })}</div></div><div class="modal-footer"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('plus')} Add event</button></div></form>`);
+    openModal(`<form class="modal modal-small" data-form="event" novalidate>${modalHeader('Add timeline event', 'Log a scheduled milestone, interview, or update.')}<div class="modal-body"><div class="form-grid">${field('Application', 'application_id', defaultId, 'select', { required: true, span: true, options: candidates.map(a => `<option value="${a.id}" ${selected(defaultId,a.id)}>${e(appCompanyName(a))} — ${e(a.job_title)}</option>`).join('') })}${field('Event type', 'event_type', 'Interview', 'select', { required: true, options: selectOptions(['Applied', 'Recruiter Viewed', 'Screening', 'Interview', 'Technical Test', 'Final Interview', 'Offer', 'Rejected', 'Other'], 'Interview', 'Select event type') })}${field('Event date', 'event_date', localDate(), 'date', { required: true })}${field('Title', 'title', '', 'text', { required: true, span: true, placeholder: 'e.g. Technical interview scheduled' })}${field('Description', 'description', '', 'textarea', { span: true, placeholder: 'Meeting link, agenda, or talking points' })}</div></div><div class="modal-footer"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('plus')} Add event</button></div></form>`);
   }
   function showReminderModal(appId) {
     const app = getApplication(appId); if (!app) return;
@@ -741,13 +807,13 @@
   }
   function showAttachmentModal(appId) {
     const app = getApplication(appId); if (!app) return;
-    openModal(`<form class="modal modal-small" data-form="attachment">${modalHeader('Add attachment', `${appCompanyName(app)} · ${app.job_title}`)}<div class="modal-body"><input type="hidden" name="application_id" value="${app.id}">${field('File or resource name', 'attachment_name', '', 'text', { required: true, placeholder: 'e.g. Portfolio case study.pdf' })}<p class="helper-text" style="margin-top:9px">This keeps a reference in your local tracker. Store the file itself wherever you prefer.</p></div><div class="modal-footer"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('plus')} Add attachment</button></div></form>`);
+    openModal(`<form class="modal modal-small" data-form="attachment">${modalHeader('Add attachment', `${appCompanyName(app)} · ${app.job_title}`)}<div class="modal-body"><input type="hidden" name="application_id" value="${app.id}">${field('File or document reference', 'attachment_name', '', 'text', { required: true, placeholder: 'e.g. Design Portfolio Case Study.pdf' })}<p class="helper-text" style="margin-top:8px">This stores a reference link in your local record.</p></div><div class="modal-footer"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('plus')} Add reference</button></div></form>`);
   }
   function showSavedJobModal(jobId = null) {
     const existing = jobId ? state.db.saved_jobs.find(x => x.id === jobId) : null;
     const company = existing ? getCompany(existing.company_id) : null;
     const job = existing || { company_name: '', job_title: '', source: 'LinkedIn', url: '', salary_min: '', salary_max: '', deadline: '', priority: 'Medium', notes: '' };
-    openModal(`<form class="modal modal-small" data-form="saved-job" novalidate>${modalHeader(existing ? 'Edit saved job' : 'Save a job', 'Keep interesting roles until you are ready to apply.')}<div class="modal-body"><input type="hidden" name="id" value="${attr(existing?.id || '')}"><div class="form-grid">${field('Company', 'company_name', company?.name || job.company_name, 'text', { required: true, span: true, placeholder: 'e.g. Studio North' })}${field('Position', 'job_title', job.job_title, 'text', { required: true, span: true, placeholder: 'e.g. Product Designer' })}${field('Source', 'source', job.source, 'select', { options: selectOptions(SOURCES, job.source, 'Select source') })}${field('Priority', 'priority', job.priority, 'select', { options: selectOptions(PRIORITIES, job.priority, 'Select priority') })}${field('URL', 'url', job.url, 'url', { span: true, placeholder: 'https://…' })}${field('Salary min', 'salary_min', job.salary_min || job.salary, 'number', { min: 0 })}${field('Salary max', 'salary_max', job.salary_max, 'number', { min: 0 })}${field('Deadline', 'deadline', job.deadline, 'date')}${field('Notes', 'notes', job.notes, 'textarea', { span: true, placeholder: 'Why this role is worth saving' })}</div></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('bookmark')} ${existing ? 'Save changes' : 'Save job'}</button></div></form>`);
+    openModal(`<form class="modal modal-small" data-form="saved-job" novalidate>${modalHeader(existing ? 'Edit saved job' : 'Save a job', 'Keep promising listings on your shortlist.')}<div class="modal-body"><input type="hidden" name="id" value="${attr(existing?.id || '')}"><div class="form-grid">${field('Company', 'company_name', company?.name || job.company_name, 'text', { required: true, span: true, placeholder: 'e.g. Studio North' })}${field('Position', 'job_title', job.job_title, 'text', { required: true, span: true, placeholder: 'e.g. Product Designer' })}${field('Source', 'source', job.source, 'select', { options: selectOptions(SOURCES, job.source, 'Select source') })}${field('Priority', 'priority', job.priority, 'select', { options: selectOptions(PRIORITIES, job.priority, 'Select priority') })}${field('Listing URL', 'url', job.url, 'url', { span: true, placeholder: 'https://…' })}${field('Salary min', 'salary_min', job.salary_min || job.salary, 'number', { min: 0 })}${field('Salary max', 'salary_max', job.salary_max, 'number', { min: 0 })}${field('Deadline', 'deadline', job.deadline, 'date')}${field('Notes', 'notes', job.notes, 'textarea', { span: true, placeholder: 'Key reasons to apply' })}</div></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">Cancel</button><button class="btn btn-primary" type="submit">${icon('bookmark')} ${existing ? 'Save changes' : 'Save job'}</button></div></form>`);
   }
   function showConfirm({ title, message, confirmLabel = 'Delete', action, id }) {
     openModal(`<div class="modal modal-small">${modalHeader(title)}<div class="modal-body"><p class="confirm-message">${e(message)}</p></div><div class="modal-footer"><button class="btn" data-action="close-modal">Cancel</button><button class="btn btn-danger" data-action="${attr(action)}" data-id="${attr(id || '')}">${icon('trash')} ${e(confirmLabel)}</button></div></div>`);
@@ -786,7 +852,7 @@
       state.db.applications.push(record);
       state.db.application_events.push({ id: uid('event'), application_id: record.id, event_type: record.status === 'Saved' ? 'Saved' : 'Applied', event_date: record.applied_date || localDate(), title: record.status === 'Saved' ? 'Job saved' : 'Application submitted', description: `Added in JobTrack${record.source ? ` · ${record.source}` : ''}.` });
     } else if (priorStatus !== record.status) {
-      state.db.application_events.push({ id: uid('event'), application_id: record.id, event_type: record.status, event_date: localDate(), title: `Status changed to ${record.status}`, description: '' });
+      state.db.application_events.push({ id: uid('event'), application_id: record.id, event_type: record.status, event_date: localDate(), title: `Status updated to ${record.status}`, description: '' });
     }
     if (new FormData(form).get('set_reminder') === 'on') {
       const reminderDate = value(form, 'reminder_date');
@@ -797,14 +863,14 @@
       }
     }
     saveDb(); closeModal();
-    toast(existing ? 'Application updated' : 'Application added', existing ? 'Your dashboard and metrics are current.' : 'The application is now in your pipeline.');
+    toast(existing ? 'Application updated' : 'Application added', existing ? 'Your pipeline and metrics are now current.' : 'The application has been added to your tracker.');
     if (state.view === 'detail') state.detailAppId = record.id;
     renderApp();
   }
   function createEventFromForm(form) {
     clearErrors(form);
     const appId = value(form, 'application_id'); const title = value(form, 'title'); const date = value(form, 'event_date');
-    let valid = true; if (!title) { setError(form, 'title', 'A timeline title is required.'); valid = false; } if (!date) { setError(form, 'event_date', 'An event date is required.'); valid = false; }
+    let valid = true; if (!title) { setError(form, 'title', 'An event title is required.'); valid = false; } if (!date) { setError(form, 'event_date', 'An event date is required.'); valid = false; }
     if (!valid) return;
     const application = getApplication(appId); if (!application) return;
     const type = value(form, 'event_type') || 'Note';
@@ -812,21 +878,21 @@
     application.updated_at = nowIso();
     const statusByEvent = { Screening: 'Screening', Interview: 'Interview', 'Technical Test': 'Technical Test', 'Final Interview': 'Final Interview', Offer: 'Offer', Rejected: 'Rejected' };
     if (statusByEvent[type] && application.status !== statusByEvent[type]) application.status = statusByEvent[type];
-    saveDb(); closeModal(); toast('Timeline event added', 'The activity appears in your application timeline and calendar.'); renderApp();
+    saveDb(); closeModal(); toast('Timeline event logged', 'Appears in your timeline and calendar view.'); renderApp();
   }
   function createReminderFromForm(form) {
     const appId = value(form, 'application_id'), date = value(form, 'reminder_date'), type = value(form, 'reminder_type');
     if (!date) { setError(form, 'reminder_date', 'Choose a reminder date.'); return; }
     state.db.reminders.push({ id: uid('reminder'), application_id: appId, reminder_type: type || 'Follow-up', reminder_date: date, completed: false });
     const app = getApplication(appId); if (app) app.updated_at = nowIso();
-    saveDb(); closeModal(); toast('Reminder created', `${type || 'Reminder'} is set for ${formatDate(date)}.`); renderApp();
+    saveDb(); closeModal(); toast('Reminder created', `${type || 'Reminder'} scheduled for ${formatDate(date)}.`); renderApp();
   }
   function addAttachmentFromForm(form) {
     const appId = value(form, 'application_id'), name = value(form, 'attachment_name');
-    if (!name) { setError(form, 'attachment_name', 'Enter a file or resource name.'); return; }
+    if (!name) { setError(form, 'attachment_name', 'Enter a document or resource name.'); return; }
     const app = getApplication(appId); if (!app) return;
     app.attachments = app.attachments || []; app.attachments.push({ name, created_at: nowIso() }); app.updated_at = nowIso();
-    saveDb(); closeModal(); toast('Attachment added', 'A reference was added to this application.'); renderApp();
+    saveDb(); closeModal(); toast('Attachment reference added'); renderApp();
   }
   function saveSavedJobFromForm(form) {
     clearErrors(form);
@@ -837,17 +903,17 @@
     const record = existing || { id: uid('saved'), created_at: nowIso(), status: 'Saved' };
     Object.assign(record, { company_id: company.id, job_title: title, source: value(form, 'source') || 'Other', url: value(form, 'url'), salary_min: numberValue(form, 'salary_min'), salary_max: numberValue(form, 'salary_max'), deadline: value(form, 'deadline'), priority: value(form, 'priority') || 'Medium', notes: value(form, 'notes'), updated_at: nowIso() });
     if (!existing) state.db.saved_jobs.push(record);
-    saveDb(); closeModal(); toast(existing ? 'Saved job updated' : 'Job saved', existing ? 'Your shortlist is up to date.' : 'Review it whenever you are ready to apply.'); renderApp();
+    saveDb(); closeModal(); toast(existing ? 'Saved job updated' : 'Job saved', existing ? 'Your shortlist is updated.' : 'Saved to your shortlist.'); renderApp();
   }
 
-  // ---------- Events ----------
+  // ---------- Events & Navigation ----------
   function navigate(view) {
     state.view = view; state.detailAppId = null; state.sidebarOpen = false; state.globalOpen = false; state.notificationOpen = false; state.profileOpen = false; state.quickFilterOpen = false;
     renderApp(); window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function openDetail(id) {
     if (!getApplication(id)) return;
-    closeModal(); state.view = 'detail'; state.detailAppId = id; state.globalOpen = false; state.notificationOpen = false; state.profileOpen = false; renderApp(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    closeModal(); state.view = 'detail'; state.detailAppId = id; state.globalOpen = false; state.notificationOpen = false; state.profileOpen = false; state.sidebarOpen = false; renderApp(); window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function deleteApplication(id) {
     const app = getApplication(id); if (!app) return;
@@ -855,19 +921,18 @@
     state.db.application_events = state.db.application_events.filter(x => x.application_id !== id);
     state.db.reminders = state.db.reminders.filter(x => x.application_id !== id);
     state.db.saved_jobs.forEach(x => { if (x.application_id === id) { x.status = 'Saved'; x.application_id = ''; } });
-    // Keep company notes/history only when another record uses it; otherwise remove empty automatic company.
     const company = getCompany(app.company_id);
     if (company && !state.db.applications.some(a => a.company_id === company.id) && !state.db.saved_jobs.some(s => s.company_id === company.id) && !company.notes && !company.website) state.db.companies = state.db.companies.filter(c => c.id !== company.id);
-    saveDb(); closeModal(); state.view = 'applications'; state.detailAppId = null; toast('Application deleted', 'Related timeline events and reminders were removed.'); renderApp();
+    saveDb(); closeModal(); state.view = 'applications'; state.detailAppId = null; toast('Application deleted', 'Application and related milestones were removed.'); renderApp();
   }
   function deleteSavedJob(id) {
-    state.db.saved_jobs = state.db.saved_jobs.filter(x => x.id !== id); saveDb(); closeModal(); toast('Saved job deleted', 'The job was removed from your shortlist.'); renderApp();
+    state.db.saved_jobs = state.db.saved_jobs.filter(x => x.id !== id); saveDb(); closeModal(); toast('Saved job deleted'); renderApp();
   }
   function convertSavedJob(id) {
     const job = state.db.saved_jobs.find(x => x.id === id); if (!job || job.status === 'Applied') return;
     const app = { id: uid('app'), company_id: job.company_id, job_title: job.job_title, job_type: '', location: '', work_mode: '', source: job.source, job_url: job.url || '', applied_date: localDate(), salary_min: Number(job.salary_min || job.salary || 0), salary_max: Number(job.salary_max || 0), recruiter_name: '', recruiter_contact: '', status: 'Applied', priority: job.priority || 'Medium', deadline: job.deadline || '', next_followup: '', notes: job.notes || '', job_description: '', requirements: '', interview_details: '', resume_used: '', cover_letter_used: '', attachments: [], created_at: nowIso(), updated_at: nowIso() };
     state.db.applications.push(app); state.db.application_events.push({ id: uid('event'), application_id: app.id, event_type: 'Applied', event_date: app.applied_date, title: 'Application submitted', description: `Converted from saved job${app.source ? ` · ${app.source}` : ''}.` });
-    job.status = 'Applied'; job.application_id = app.id; job.updated_at = nowIso(); saveDb(); toast('Saved job converted', 'It is now an application in your pipeline.'); renderApp();
+    job.status = 'Applied'; job.application_id = app.id; job.updated_at = nowIso(); saveDb(); toast('Saved job converted', 'Moved to your active pipeline.'); renderApp();
   }
   function clearDemoData() {
     const seedAppIds = new Set(state.db.applications.filter(x => x.is_seed).map(x => x.id));
@@ -877,21 +942,38 @@
     state.db.application_events = state.db.application_events.filter(x => !x.is_seed && !seedAppIds.has(x.application_id));
     state.db.reminders = state.db.reminders.filter(x => !x.is_seed && !seedAppIds.has(x.application_id));
     state.db.companies = state.db.companies.filter(c => !c.is_seed || state.db.applications.some(a => a.company_id === c.id) || state.db.saved_jobs.some(j => j.company_id === c.id));
-    saveDb(); closeModal(); toast('Demo data removed', `${count} starter record${count === 1 ? '' : 's'} removed. Your own records remain.`); renderApp();
+    saveDb(); closeModal(); toast('Demo data removed', `${count} starter record${count === 1 ? '' : 's'} removed. Your own entries remain.`); renderApp();
   }
   function exportData() {
     const clean = JSON.stringify(state.db, null, 2);
-    const blob = new Blob([clean], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `jobtrack-backup-${localDate()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); toast('Workspace exported', 'A JSON backup was downloaded.');
+    const blob = new Blob([clean], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `jobtrack-backup-${localDate()}.json`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); toast('Workspace exported', 'A JSON backup has been downloaded.');
   }
-  function resetWorkspace() { state.db = createSeedDatabase(); state.filters = defaultFilters(); state.view = 'dashboard'; saveDb(); closeModal(); toast('Workspace reset', 'The preview workspace has been restored.'); renderApp(); }
+  function importData(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (parsed && (Array.isArray(parsed.applications) || Array.isArray(parsed.companies))) {
+          state.db = normalizeDb(parsed);
+          saveDb();
+          toast('Workspace imported', `${state.db.applications.length} applications loaded successfully.`);
+          renderApp();
+        } else {
+          toast('Import failed', 'Invalid JobTrack JSON file structure.');
+        }
+      } catch (err) {
+        toast('Import failed', 'Could not read or parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+  }
+  function resetWorkspace() { state.db = createSeedDatabase(); state.filters = defaultFilters(); state.view = 'dashboard'; saveDb(); closeModal(); toast('Workspace reset', 'The sample starter workspace has been restored.'); renderApp(); }
   function toggleTheme() { state.db.meta.theme = state.db.meta.theme === 'dark' ? 'light' : 'dark'; saveDb(); state.profileOpen = false; renderApp(); }
 
   function handleAppClick(event) {
     const actionEl = event.target.closest('[data-action]');
-    // Clicking outside temporary topbar popovers closes them.
     if (!actionEl) {
-      // Do not redraw while a user is interacting with an input/select. Only redraw
-      // when there is an open transient surface that genuinely needs closing.
       let changed = false;
       if (!event.target.closest('.global-search') && state.globalOpen) { state.globalOpen = false; changed = true; }
       if (!event.target.closest('.popover') && !event.target.closest('.top-actions') && (state.notificationOpen || state.profileOpen || state.quickFilterOpen)) {
@@ -924,16 +1006,16 @@
     else if (action === 'calendar-today') { state.calendarDate = startOfMonth(new Date()); renderApp(); }
     else if (action === 'open-day-events') showDayEvents(actionEl.dataset.date);
     else if (action === 'open-company') { state.filters = { ...defaultFilters(), company: id }; state.view = 'applications'; renderApp(); }
-    else if (action === 'delete-application') { const a = getApplication(id); if (a) showConfirm({ title: 'Delete application?', message: `“${a.job_title}” at ${appCompanyName(a)} and its related events and reminders will be permanently removed.`, action: 'confirm-delete-application', id }); }
+    else if (action === 'delete-application') { const a = getApplication(id); if (a) showConfirm({ title: 'Delete application?', message: `“${a.job_title}” at ${appCompanyName(a)} and all associated milestones will be removed.`, action: 'confirm-delete-application', id }); }
     else if (action === 'confirm-delete-application') deleteApplication(id);
-    else if (action === 'delete-saved-job') { const j = state.db.saved_jobs.find(x => x.id === id); if (j) showConfirm({ title: 'Delete saved job?', message: `“${j.job_title}” will be removed from your shortlist.`, action: 'confirm-delete-saved-job', id }); }
+    else if (action === 'delete-saved-job') { const j = state.db.saved_jobs.find(x => x.id === id); if (j) showConfirm({ title: 'Delete saved job?', message: `“${j.job_title}” will be removed from your saved list.`, action: 'confirm-delete-saved-job', id }); }
     else if (action === 'confirm-delete-saved-job') deleteSavedJob(id);
     else if (action === 'convert-saved-job') convertSavedJob(id);
-    else if (action === 'complete-reminder') { const r = state.db.reminders.find(x => x.id === id); if (r) { r.completed = true; saveDb(); toast('Reminder completed', 'It will no longer appear in your action list.'); renderApp(); } }
+    else if (action === 'complete-reminder') { const r = state.db.reminders.find(x => x.id === id); if (r) { r.completed = true; saveDb(); toast('Reminder completed'); renderApp(); } }
     else if (action === 'remove-attachment') { const app = getApplication(id); if (app) { app.attachments.splice(Number(actionEl.dataset.index), 1); app.updated_at = nowIso(); saveDb(); toast('Attachment removed'); renderApp(); } }
-    else if (action === 'clear-demo') { if (hasSeedData()) showConfirm({ title: 'Remove demo data?', message: 'Only clearly marked sample applications and their demo events/reminders will be removed. Anything you added stays intact.', confirmLabel: 'Remove demo', action: 'confirm-clear-demo', id: 'yes' }); }
+    else if (action === 'clear-demo') { if (hasSeedData()) showConfirm({ title: 'Remove demo data?', message: 'Only clearly marked sample applications and their events will be deleted. Any records you added remain untouched.', confirmLabel: 'Remove demo data', action: 'confirm-clear-demo', id: 'yes' }); }
     else if (action === 'confirm-clear-demo') clearDemoData();
-    else if (action === 'reset-workspace') showConfirm({ title: 'Reset workspace?', message: 'This replaces all local JobTrack data with the original preview workspace. This cannot be undone.', confirmLabel: 'Reset workspace', action: 'confirm-reset-workspace', id: 'yes' });
+    else if (action === 'reset-workspace') showConfirm({ title: 'Reset workspace?', message: 'This replaces current records with the default demonstration workspace. This cannot be undone.', confirmLabel: 'Reset workspace', action: 'confirm-reset-workspace', id: 'yes' });
     else if (action === 'confirm-reset-workspace') resetWorkspace();
     else if (action === 'export-data') exportData();
   }
@@ -959,7 +1041,12 @@
   }
   function handleAppChange(event) {
     const target = event.target;
-    if (target.dataset.filter && target.dataset.filter !== 'search') { state.filters[target.dataset.filter] = target.value; renderApp(); }
+    if (target.dataset.action === 'import-data-input' && target.files && target.files[0]) {
+      importData(target.files[0]);
+    } else if (target.dataset.filter && target.dataset.filter !== 'search') {
+      state.filters[target.dataset.filter] = target.value;
+      renderApp();
+    }
   }
   function handleModalSubmit(event) {
     event.preventDefault(); const form = event.target; const kind = form.dataset.form;
@@ -979,11 +1066,11 @@
   function handleDragLeave(event) { const column = event.target.closest('.kanban-column'); if (column && !column.contains(event.relatedTarget)) column.classList.remove('drop-target'); }
   function handleDrop(event) {
     const column = event.target.closest('.kanban-column'); if (!column) return; event.preventDefault(); const app = getApplication(event.dataTransfer.getData('text/plain')); const status = column.dataset.kanbanStatus;
-    if (app && status && app.status !== status) { app.status = status; app.updated_at = nowIso(); state.db.application_events.push({ id: uid('event'), application_id: app.id, event_type: status, event_date: localDate(), title: `Status changed to ${status}`, description: 'Moved in Kanban board.' }); saveDb(); toast('Status updated', `${app.job_title} moved to ${status}.`); }
+    if (app && status && app.status !== status) { app.status = status; app.updated_at = nowIso(); state.db.application_events.push({ id: uid('event'), application_id: app.id, event_type: status, event_date: localDate(), title: `Status updated to ${status}`, description: 'Moved on Kanban board.' }); saveDb(); toast('Status updated', `${app.job_title} moved to ${status}.`); }
     renderApp();
   }
   function toast(title, message = '') {
-    const id = uid('toast'); const item = document.createElement('div'); item.className = 'toast'; item.id = id; item.innerHTML = `${icon('check')}<div><b>${e(title)}</b>${message ? `<span>${e(message)}</span>` : ''}</div>`; toastRoot.append(item); setTimeout(() => { const n = document.getElementById(id); if (n) { n.style.opacity = '0'; n.style.transform = 'translateY(5px)'; n.style.transition = 'opacity .18s, transform .18s'; setTimeout(() => n.remove(), 220); } }, 3400);
+    const id = uid('toast'); const item = document.createElement('div'); item.className = 'toast'; item.id = id; item.innerHTML = `${icon('check')}<div><b>${e(title)}</b>${message ? `<span>${e(message)}</span>` : ''}</div>`; toastRoot.append(item); setTimeout(() => { const n = document.getElementById(id); if (n) { n.style.opacity = '0'; n.style.transform = 'translateY(6px)'; n.style.transition = 'opacity .18s ease, transform .18s ease'; setTimeout(() => n.remove(), 220); } }, 3400);
   }
 
   // ---------- Boot ----------
@@ -1003,5 +1090,4 @@
     if (event.key === 'Escape') { if (modalRoot.innerHTML) closeModal(); else { state.globalOpen = false; state.notificationOpen = false; state.profileOpen = false; state.quickFilterOpen = false; renderApp(); } }
   });
   renderApp();
-  window.setTimeout(() => { state.loading = false; renderApp(); }, 220);
 })();
