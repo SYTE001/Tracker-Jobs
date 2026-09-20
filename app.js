@@ -23,6 +23,8 @@
 
   const state = {
     db: null,
+    user: null, // Holds mock user session
+    authView: 'login', // 'login' or 'signup'
     view: 'dashboard',
     detailAppId: null,
     appViewMode: 'table',
@@ -32,7 +34,8 @@
     notificationOpen: false,
     profileOpen: false,
     quickFilterOpen: false,
-    sidebarOpen: false,
+    sidebarOpen: false, // Mobile off-canvas
+    sidebarCollapsed: false, // Desktop mini state
     calendarDate: startOfMonth(new Date()),
     loading: false
   };
@@ -179,6 +182,9 @@
       location: '<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/>',
       refresh: '<path d="M20 11a8 8 0 0 0-14.5-4.7L4 8M4 4v4h4M4 13a8 8 0 0 0 14.5 4.7L20 16M20 20v-4h-4"/>',
       external: '<path d="M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6"/>',
+      google: '<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>',
+      panelLeftClose: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 3v18M14 15l-3-3 3-3"/>',
+      panelLeftOpen: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 3v18M11 9l3 3-3 3"/>',
       list: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>'
     };
     const classes = ['icon', className].filter(Boolean).join(' ');
@@ -251,6 +257,33 @@
   function saveDb() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.db));
     document.documentElement.dataset.theme = state.db.meta.theme || 'light';
+  }
+  function mockLogin(userData) {
+    const btn = document.querySelector('.auth-submit');
+    if (btn) btn.innerHTML = '<span class="spinner" style="border-top-color:#fff"></span>';
+    setTimeout(() => {
+      state.user = userData;
+      saveAuth(userData);
+      renderApp();
+    }, 600);
+  }
+
+  // Auth persistence
+  const AUTH_KEY = 'jobtrack-session-v1';
+  function loadAuth() {
+    try {
+      const session = localStorage.getItem(AUTH_KEY);
+      return session ? JSON.parse(session) : null;
+    } catch {
+      return null;
+    }
+  }
+  function saveAuth(user) {
+    if (user) {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(AUTH_KEY);
+    }
   }
   function hasSeedData() {
     return state.db.applications.some(x => x.is_seed) || state.db.saved_jobs.some(x => x.is_seed);
@@ -424,13 +457,13 @@
         ${navItem('saved', 'Saved Jobs', 'bookmark')}
       </nav>
       <div class="sidebar-bottom">
-        <span class="nav-label">Preferences</span>
+        <span class="nav-label" style="display: ${state.sidebarCollapsed ? 'none' : 'block'}">Preferences</span>
         <nav class="sidebar-nav">${navItem('settings', 'Settings', 'settings')}</nav>
         ${hasSeedData() ? `<div class="sidebar-help"><b>Demo workspace</b><span>Sample applications are clearly marked and can be removed anytime.</span><button data-action="clear-demo">Clear demo data</button></div>` : ''}
         <div class="user-card">
-          <span class="avatar">AM</span>
+          <span class="avatar">${initials(state.user?.name || 'Arif Mahendra')}</span>
           <div class="user-details">
-            <b>Arif Mahendra</b>
+            <b>${e(state.user?.name || 'Arif Mahendra')}</b>
             <span>Personal workspace</span>
           </div>
           <button class="user-more" data-action="toggle-profile" aria-label="Profile menu">${icon('more')}</button>
@@ -456,7 +489,7 @@
   function renderProfilePopover() {
     if (!state.profileOpen) return '';
     const dark = state.db.meta.theme === 'dark';
-    return `<div class="popover" style="right: 20px; top: 54px; min-width:210px"><div class="popover-body"><button class="notification-item" data-action="navigate" data-view="settings"><b>Workspace settings</b><span>Theme, backup, and data</span></button><button class="notification-item" data-action="toggle-theme"><b>${dark ? 'Switch to light mode' : 'Switch to dark mode'}</b><span>Toggle interface theme</span></button></div></div>`;
+    return `<div class="popover" style="right: 20px; top: 54px; min-width:210px"><div class="popover-body"><button class="notification-item" data-action="navigate" data-view="settings"><b>Workspace settings</b><span>Theme, backup, and data</span></button><button class="notification-item" data-action="toggle-theme"><b>${dark ? 'Switch to light mode' : 'Switch to dark mode'}</b><span>Toggle interface theme</span></button><div class="popover-divider"></div><button class="notification-item" data-action="logout" style="color:var(--danger)"><b>Log out</b><span>End your session</span></button></div></div>`;
   }
   function renderQuickFilter() {
     if (!state.quickFilterOpen) return '';
@@ -467,6 +500,7 @@
     const dark = state.db.meta.theme === 'dark';
     return `<header class="topbar">
       <button class="icon-button mobile-menu" data-action="toggle-sidebar" aria-label="Open navigation">${icon('menu')}</button>
+      <button class="icon-button desktop-sidebar-toggle" data-action="toggle-desktop-sidebar" aria-label="Toggle sidebar" title="Toggle sidebar">${state.sidebarCollapsed ? icon('panelLeftOpen') : icon('panelLeftClose')}</button>
       <div class="global-search">
         ${icon('search', 'global-search-icon')}
         <input data-global-search placeholder="Search company, role, recruiter, notes..." value="${attr(state.globalQuery)}" aria-label="Global search" />
@@ -484,9 +518,50 @@
   function renderLoading() {
     return `<main class="page"><div class="page-header"><div><div class="skeleton" style="width:180px;height:28px;border-radius:6px"></div><div class="skeleton" style="width:280px;height:14px;border-radius:4px;margin-top:8px"></div></div></div><div class="metrics-grid">${Array.from({ length: 6 }, () => '<div class="metric-card skeleton" style="height:110px"></div>').join('')}</div><div class="card skeleton" style="height:260px"></div></main>`;
   }
+  function renderAuth() {
+    const isLogin = state.authView === 'login';
+    return `<div class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="brand"><span class="brand-mark">J</span><span class="brand-name">JobTrack</span></div>
+          <h2>${isLogin ? 'Welcome back' : 'Create an account'}</h2>
+          <p>${isLogin ? 'Enter your details to access your workspace.' : 'Start organizing your job search today.'}</p>
+        </div>
+        <form id="auth-form" class="auth-form">
+          ${!isLogin ? `<div class="field"><label>Full Name</label><input type="text" id="auth-name" placeholder="John Doe" required /></div>` : ''}
+          <div class="field"><label>Email address</label><input type="email" id="auth-email" placeholder="you@example.com" required autocomplete="email" /></div>
+          <div class="field"><label>Password</label><input type="password" id="auth-password" placeholder="••••••••" required autocomplete="current-password" /></div>
+          <button type="submit" class="btn btn-primary auth-submit">${isLogin ? 'Sign in' : 'Create account'}</button>
+        </form>
+        <div class="auth-divider"><span>or</span></div>
+        <button class="btn btn-secondary auth-google" data-action="auth-google">
+          ${icon('google', 'google-icon')}
+          Continue with Google
+        </button>
+        <div class="auth-footer">
+          ${isLogin ? 'Don\'t have an account? <button class="inline-link" data-action="switch-auth" data-view="signup">Sign up</button>' : 'Already have an account? <button class="inline-link" data-action="switch-auth" data-view="login">Sign in</button>'}
+        </div>
+      </div>
+    </div>`;
+  }
   function renderApp() {
-    document.documentElement.dataset.theme = state.db.meta.theme || 'light';
-    appRoot.innerHTML = `<div class="shell">${renderSidebar()}<div class="main-wrap">${renderTopbar()}${state.loading ? renderLoading() : renderPage()}</div></div>`;
+    document.documentElement.dataset.theme = state.db?.meta?.theme || 'light';
+    
+    if (!state.user) {
+      appRoot.innerHTML = renderAuth();
+      const form = document.getElementById('auth-form');
+      if (form) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const email = document.getElementById('auth-email').value;
+          const name = document.getElementById('auth-name')?.value || email.split('@')[0];
+          mockLogin({ email, name });
+        });
+      }
+      return;
+    }
+
+    appRoot.innerHTML = `<div class="shell ${state.sidebarCollapsed ? 'sidebar-collapsed' : ''}">${renderSidebar()}<div class="main-wrap">${renderTopbar()}${state.loading ? renderLoading() : renderPage()}</div></div>`;
     if (state.globalOpen && state.globalQuery) requestAnimationFrame(() => { const node = appRoot.querySelector('[data-global-search]'); if (node) { node.focus(); node.setSelectionRange(node.value.length, node.value.length); } });
   }
   function renderPage() {
@@ -985,6 +1060,7 @@
     const action = actionEl.dataset.action; const id = actionEl.dataset.id;
     if (action === 'navigate') navigate(actionEl.dataset.view);
     else if (action === 'toggle-sidebar') { state.sidebarOpen = !state.sidebarOpen; renderApp(); }
+    else if (action === 'toggle-desktop-sidebar') { state.sidebarCollapsed = !state.sidebarCollapsed; renderApp(); }
     else if (action === 'open-application-modal') showApplicationModal(id || null);
     else if (action === 'open-saved-job-modal') showSavedJobModal(id || null);
     else if (action === 'edit-saved-job') showSavedJobModal(id);
@@ -1018,6 +1094,22 @@
     else if (action === 'reset-workspace') showConfirm({ title: 'Reset workspace?', message: 'This replaces current records with the default demonstration workspace. This cannot be undone.', confirmLabel: 'Reset workspace', action: 'confirm-reset-workspace', id: 'yes' });
     else if (action === 'confirm-reset-workspace') resetWorkspace();
     else if (action === 'export-data') exportData();
+    else if (action === 'switch-auth') { state.authView = actionEl.dataset.view; renderApp(); }
+    else if (action === 'auth-google') {
+      const btn = actionEl;
+      btn.innerHTML = '<span class="spinner" style="border-top-color:#fff"></span>';
+      setTimeout(() => {
+        state.user = { name: 'Arif Mahendra', email: 'arif@example.com' };
+        saveAuth(state.user);
+        renderApp();
+      }, 800);
+    }
+    else if (action === 'logout') {
+      state.user = null;
+      saveAuth(null);
+      state.profileOpen = false;
+      renderApp();
+    }
   }
   function handleModalClick(event) {
     const actionEl = event.target.closest('[data-action]');
@@ -1074,6 +1166,7 @@
   }
 
   // ---------- Boot ----------
+  state.user = loadAuth();
   state.db = loadDb();
   appRoot.addEventListener('click', handleAppClick);
   appRoot.addEventListener('input', handleAppInput);
