@@ -1,38 +1,36 @@
 # 💼 JobTrack
 
-A clean, lightweight dashboard to track job applications, interviews, follow-ups, and application progress in one place.
+A clean, highly responsive, production-ready dashboard to track job applications, interviews, follow-ups, and application progress in one place.
 
 ## ✨ Features
 
-- 📊 Application dashboard & pipeline
+- 📊 Interactive Kanban Board with drag-and-drop support
 - 📝 Add, edit, and manage applications
-- 🔎 Search and filtering
 - 📅 Interview & follow-up tracking
-- 📈 Application analytics
-- 🏢 Company & job details
-- 💾 Database schema included
+- 🏢 Company auto-fetching with clearbit logos
+- 🌙 Full Dark Mode Support
+- 💾 Persistent Local Storage with legacy fallback
 
 ## 🛠️ Stack
 
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?logo=html5&logoColor=fff)
-![CSS3](https://img.shields.io/badge/CSS3-1572B6?logo=css3&logoColor=fff)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=000)
-![SQL](https://img.shields.io/badge/SQL-336791?logo=postgresql&logoColor=fff)
+- **Framework**: React 19 + TypeScript + Vite
+- **Styling**: Tailwind CSS v4 + class-variance-authority
+- **Components**: Radix UI + custom minimal primitives (Anti-Slop)
+- **State Management**: Zustand
+- **Validation**: Zod + React Hook Form
+- **Drag & Drop**: @hello-pangea/dnd
 
 ## 🚀 Run Locally
 
-Clone the repository, then open `index.html` in your browser.
+```bash
+# Install dependencies
+npm install
 
-For local development, a simple static server such as VS Code Live Server can be used.
+# Start the dev server
+npm run dev
 
-## 📁 Structure
-
-```text
-Tracker-Jobs/
-├── index.html
-├── styles.css
-├── app.js
-└── schema.sql
+# Build for production
+npm run build
 ```
 
 ## 🎯 Purpose
