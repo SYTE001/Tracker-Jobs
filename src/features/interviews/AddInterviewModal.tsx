@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input, Textarea } from "@/components/ui/input"
 import { Select, Field } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { INTERVIEW_TYPES, type InterviewType } from "@/types"
+import { INTERVIEW_TYPES, type InterviewType, type Interview } from "@/types"
 import { INTERVIEW_TYPE_LABELS } from "@/lib/constants"
 import { todayIso } from "@/lib/dates"
 
@@ -14,39 +14,87 @@ interface Props {
   open: boolean
   onOpenChange: (o: boolean) => void
   applicationId: string
+  /** When provided, the modal edits this interview instead of creating a new one. */
+  interview?: Interview
 }
 
-export function AddInterviewModal({ open, onOpenChange, applicationId }: Props) {
-  const addInterview = useJobStore((s) => s.addInterview)
+interface FormValues {
+  stage: string
+  type: InterviewType
+  date: string
+  start_time: string
+  end_time: string
+  interviewer: string
+  meeting_url: string
+  location: string
+  notes: string
+  result: string
+  follow_up_date: string
+}
 
-  const { register, handleSubmit, reset } = useForm<{
-    stage: string
-    type: InterviewType
-    date: string
-    start_time: string
-    interviewer: string
-    meeting_url: string
-    location: string
-    notes: string
-  }>()
+const EMPTY: FormValues = {
+  stage: "Initial",
+  type: "video",
+  date: todayIso(),
+  start_time: "",
+  end_time: "",
+  interviewer: "",
+  meeting_url: "",
+  location: "",
+  notes: "",
+  result: "",
+  follow_up_date: "",
+}
+
+export function AddInterviewModal({ open, onOpenChange, applicationId, interview }: Props) {
+  const addInterview = useJobStore((s) => s.addInterview)
+  const updateInterview = useJobStore((s) => s.updateInterview)
+  const isEdit = Boolean(interview)
+
+  const { register, handleSubmit, reset } = useForm<FormValues>()
 
   useEffect(() => {
-    if (open) reset({ stage: "Initial", type: "video", date: todayIso(), start_time: "", interviewer: "", meeting_url: "", location: "", notes: "" })
-  }, [open, reset])
+    if (!open) return
+    if (interview) {
+      reset({
+        stage: interview.stage ?? "",
+        type: interview.type,
+        date: interview.date,
+        start_time: interview.start_time ?? "",
+        end_time: interview.end_time ?? "",
+        interviewer: interview.interviewer ?? "",
+        meeting_url: interview.meeting_url ?? "",
+        location: interview.location ?? "",
+        notes: interview.notes ?? "",
+        result: interview.result ?? "",
+        follow_up_date: interview.follow_up_date ?? "",
+      })
+    } else {
+      reset(EMPTY)
+    }
+  }, [open, interview, reset])
 
-  const submit = (v: Record<string, string>) => {
-    addInterview({
-      application_id: applicationId,
+  const submit = (v: FormValues) => {
+    const patch = {
       stage: v.stage || undefined,
       type: v.type as InterviewType,
       date: v.date,
       start_time: v.start_time || undefined,
+      end_time: v.end_time || undefined,
       interviewer: v.interviewer || undefined,
       meeting_url: v.meeting_url || undefined,
       location: v.location || undefined,
       notes: v.notes || undefined,
-    })
-    toast.success("Interview added")
+      result: v.result || undefined,
+      follow_up_date: v.follow_up_date || undefined,
+    }
+    if (interview) {
+      updateInterview(interview.id, patch)
+      toast.success("Interview updated")
+    } else {
+      addInterview({ application_id: applicationId, ...patch })
+      toast.success("Interview added")
+    }
     onOpenChange(false)
   }
 
@@ -54,7 +102,7 @@ export function AddInterviewModal({ open, onOpenChange, applicationId }: Props) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">Add interview</DialogTitle>
+          <DialogTitle className="text-base">{isEdit ? "Edit interview" : "Add interview"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(submit)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -71,12 +119,15 @@ export function AddInterviewModal({ open, onOpenChange, applicationId }: Props) 
               </Select>
             </Field>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Date" htmlFor="date">
               <Input id="date" type="date" {...register("date", { required: true })} />
             </Field>
             <Field label="Start time" htmlFor="start_time">
               <Input id="start_time" type="time" {...register("start_time")} />
+            </Field>
+            <Field label="End time" htmlFor="end_time">
+              <Input id="end_time" type="time" {...register("end_time")} />
             </Field>
           </div>
           <Field label="Interviewer" htmlFor="interviewer">
@@ -90,6 +141,14 @@ export function AddInterviewModal({ open, onOpenChange, applicationId }: Props) 
               <Input id="location" placeholder="Office / city" {...register("location")} />
             </Field>
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Result" htmlFor="result" hint="Setting a result marks the interview complete.">
+              <Input id="result" placeholder="Passed / Rejected / Pending…" {...register("result")} />
+            </Field>
+            <Field label="Follow-up date" htmlFor="follow_up_date">
+              <Input id="follow_up_date" type="date" {...register("follow_up_date")} />
+            </Field>
+          </div>
           <Field label="Notes" htmlFor="notes">
             <Textarea id="notes" placeholder="Anything about this interview…" {...register("notes")} />
           </Field>
@@ -97,7 +156,7 @@ export function AddInterviewModal({ open, onOpenChange, applicationId }: Props) 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Add interview</Button>
+            <Button type="submit">{isEdit ? "Save changes" : "Add interview"}</Button>
           </div>
         </form>
       </DialogContent>

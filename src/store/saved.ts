@@ -47,6 +47,10 @@ export function savedJobActions(
     convertSavedJob(id) {
       const sj = get().saved_jobs.find((x) => x.id === id)
       if (!sj) return null
+      // Guard double-conversion: if already linked to an existing application, reuse it.
+      if (sj.application_id && get().applications.some((a) => a.id === sj.application_id)) {
+        return sj.application_id
+      }
       const company = get().companies.find((c) => c.id === sj.company_id)
       const appId = get().addApplication({
         job_title: sj.job_title,

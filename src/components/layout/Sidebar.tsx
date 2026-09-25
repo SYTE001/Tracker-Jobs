@@ -17,12 +17,16 @@ export function Sidebar({
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
-      "group flex w-full items-center gap-3 rounded-md text-[13px] font-medium transition-colors",
+      "group relative flex w-full items-center gap-3 rounded-md text-[13px] transition-colors",
       collapsed ? "justify-center px-0 py-2.5" : "px-2.5 py-2",
       isActive
-        ? "bg-accent text-foreground"
-        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+        ? "bg-accent font-semibold text-foreground"
+        : "font-medium text-muted-foreground hover:bg-accent/60 hover:text-foreground",
     )
+  const activeBar = (isActive: boolean) =>
+    isActive && !collapsed ? (
+      <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary" aria-hidden="true" />
+    ) : null
 
   return (
     <>
@@ -58,12 +62,17 @@ export function Sidebar({
           </p>
           {PRIMARY.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.to === "/applications"} className={linkClass} onClick={onClose}>
-              <item.icon className="h-4 w-4 shrink-0" />
-              {(!collapsed || mobileOpen) && <span className="flex-1 text-left">{item.label}</span>}
-              {(!collapsed || mobileOpen) && item.label === "Follow-ups" && overdue > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
-                  {overdue}
-                </span>
+              {({ isActive }) => (
+                <>
+                  {activeBar(isActive)}
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {(!collapsed || mobileOpen) && <span className="flex-1 text-left">{item.label}</span>}
+                  {(!collapsed || mobileOpen) && item.label === "Follow-ups" && overdue > 0 && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                      {overdue}
+                    </span>
+                  )}
+                </>
               )}
             </NavLink>
           ))}
@@ -73,8 +82,13 @@ export function Sidebar({
           </p>
           {SECONDARY.map((item) => (
             <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
-              <item.icon className="h-4 w-4 shrink-0" />
-              {(!collapsed || mobileOpen) && <span className="flex-1 text-left">{item.label}</span>}
+              {({ isActive }) => (
+                <>
+                  {activeBar(isActive)}
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {(!collapsed || mobileOpen) && <span className="flex-1 text-left">{item.label}</span>}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>

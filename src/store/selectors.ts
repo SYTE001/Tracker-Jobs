@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useJobStore } from "./useJobStore"
 import type { Application, Company, ApplicationEvent, Reminder, Interview } from "@/types"
 import { daysSince, daysUntil, isDateToday, isDatePast } from "@/lib/dates"
+import { classifyAttention, computeNextAction, ATTENTION_ORDER, type AttentionItem, type NextAction } from "@/lib/nextAction"
 
 /**
  * NOTE: Zustand v5 uses Object.is on the selector result. Every hook below must
@@ -91,4 +92,77 @@ export function deriveApplication(app: Application, reminders: Reminder[], inter
     hasUpcomingInterview: interviews.some((iv) => (daysUntil(iv.date) ?? -1) >= 0),
     nextFollowupDate: soonest?.reminder_date ?? null,
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Grouping maps + next-action / attention selectors                  */
+/* ------------------------------------------------------------------ */
+
+/** application_id → reminders (stable until reminders change). */
+export function useRemindersByApp(): Map<string, Reminder[]> {
+  const reminders = useJobStore((s) => s.reminders)
+  return useMemo(() => {
+    const map = new Map<string, Reminder[]>()
+    for (const r of reminders) {
+      const list = map.get(r.application_id)
+      if (list) list.push(r)
+      else map.set(r.application_id, [r])
+    }
+    return map
+  }, [reminders])
+}
+
+/** application_id → interviews (stable until interviews change). */
+export function useInterviewsByApp(): Map<string, Interview[]> {
+  const interviews = useJobStore((s) => s.interviews)
+  return useMemo(() => {
+    const map = new Map<string, Interview[]>()
+    for (const iv of interviews) {
+      const list = map.get(iv.application_id)
+      if (list) list.push(iv)
+      else map.set(iv.application_id, [iv])
+    }
+    return map
+  }, [interviews])
+}
+
+/** Returns a memoized `(app) => NextAction` resolver. */
+export function useNextActionResolver(): (app: Application) => NextAction {
+  const remindersByApp = useRemindersByApp()
+  const interviewsByApp = useInterviewsByApp()
+  const threshold = useJobStore((s) => s.settings.ghosted_threshold_days)
+  return useMemo(
+    () => (app: Application) =>
+      computeNextAction(app, remindersByApp.get(app.id) ?? [], interviewsByApp.get(app.id) ?? [], {
+        ghosted_threshold_days: threshold,
+      }),
+    [remindersByApp, interviewsByApp, threshold],
+  )
+}
+
+/** Attention queue across all active applications, ordered by urgency. */
+export function useAttentionQueue(limit?: number): AttentionItem[] {
+  const applications = useJobStore((s) => s.applications)
+  const remindersByApp = useRemindersByApp()
+  const interviewsByApp = useInterviewsByApp()
+  const threshold = useJobStore((s) => s.settings.ghosted_threshold_days)
+  return useMemo(() => {
+    const items: AttentionItem[] = []
+    for (const app of applications) {
+      const item = classifyAttention(app, remindersByApp.get(app.id) ?? [], interviewsByApp.get(app.id) ?? [], {
+        ghosted_threshold_days: threshold,
+      })
+      if (item) items.push(item)
+    }
+    items.sort((a, b) => {
+      const w = ATTENTION_ORDER[a.kind] - ATTENTION_ORDER[b.kind]
+      if (w !== 0) return w
+      // Within a bucket, earliest driving date first; null dates last.
+      if (a.date && b.date) return a.date < b.date ? -1 : 1
+      if (a.date) return -1
+      if (b.date) return 1
+      return 0
+    })
+    return typeof limit === "number" ? items.slice(0, limit) : items
+  }, [applications, remindersByApp, interviewsByApp, threshold, limit])
 }

@@ -2,12 +2,26 @@ import { useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { useJobStore } from "@/store/useJobStore"
+import { useCompanyMap } from "@/store/selectors"
 import { Button } from "@/components/ui/button"
 import { Input, Textarea } from "@/components/ui/input"
 import { Select, Field } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { SOURCES, PRIORITIES, CURRENCIES, type Source, type Priority, type Currency, type SavedJob } from "@/types"
 import { SOURCE_LABELS, PRIORITY_META } from "@/lib/constants"
+
+interface SavedJobForm {
+  job_title: string
+  companyName: string
+  source: Source
+  url: string
+  salary_min: string
+  salary_max: string
+  currency: Currency
+  deadline: string
+  priority: Priority
+  notes: string
+}
 
 export function AddSavedJobModal({
   open,
@@ -20,19 +34,14 @@ export function AddSavedJobModal({
 }) {
   const addSavedJob = useJobStore((s) => s.addSavedJob)
   const updateSavedJob = useJobStore((s) => s.updateSavedJob)
+  const companyMap = useCompanyMap()
 
-  const { register, handleSubmit, reset } = useForm<{
-    job_title: string
-    companyName: string
-    source: Source
-    url: string
-    salary_min: string
-    salary_max: string
-    currency: Currency
-    deadline: string
-    priority: Priority
-    notes: string
-  }>()
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<SavedJobForm>()
 
   useEffect(() => {
     if (open) {
@@ -40,7 +49,10 @@ export function AddSavedJobModal({
         job
           ? {
               job_title: job.job_title,
-              companyName: "",
+              // BUG FIX (§13.1): repopulate the company name from company_id so
+              // editing preserves the existing company relationship instead of
+              // resetting it to an empty value.
+              companyName: companyMap.get(job.company_id)?.name ?? "",
               source: job.source,
               url: job.url ?? "",
               salary_min: job.salary_min?.toString() ?? "",
@@ -64,12 +76,12 @@ export function AddSavedJobModal({
             },
       )
     }
-  }, [open, job, reset])
+  }, [open, job, reset, companyMap])
 
-  const submit = (v: Record<string, string>) => {
+  const submit = (v: SavedJobForm) => {
     const payload = {
-      job_title: v.job_title,
-      companyName: v.companyName,
+      job_title: v.job_title.trim(),
+      companyName: v.companyName.trim(),
       source: v.source as Source,
       url: v.url || undefined,
       salary_min: v.salary_min ? Number(v.salary_min) : null,
@@ -80,7 +92,8 @@ export function AddSavedJobModal({
       notes: v.notes || undefined,
     }
     if (job) {
-      const companyId = useJobStore.getState().upsertCompany(v.companyName)
+      // Resolve (or reuse) the company by name, preserving the relationship.
+      const companyId = useJobStore.getState().upsertCompany(payload.companyName)
       updateSavedJob(job.id, {
         ...payload,
         company_id: companyId,
@@ -101,11 +114,21 @@ export function AddSavedJobModal({
         </DialogHeader>
         <form onSubmit={handleSubmit(submit)} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Job title *" htmlFor="sj_title">
-              <Input id="sj_title" required placeholder="Senior Product Manager" {...register("job_title", { required: true })} />
+            <Field label="Job title *" htmlFor="sj_title" error={errors.job_title ? "Job title is required" : undefined}>
+              <Input
+                id="sj_title"
+                placeholder="Senior Product Manager"
+                aria-invalid={errors.job_title ? true : undefined}
+                {...register("job_title", { required: true, setValueAs: (v: string) => v.trim() })}
+              />
             </Field>
-            <Field label="Company *" htmlFor="sj_company">
-              <Input id="sj_company" required placeholder="Acme Corp" {...register("companyName", { required: true })} />
+            <Field label="Company *" htmlFor="sj_company" error={errors.companyName ? "Company is required" : undefined}>
+              <Input
+                id="sj_company"
+                placeholder="Acme Corp"
+                aria-invalid={errors.companyName ? true : undefined}
+                {...register("companyName", { required: true, setValueAs: (v: string) => v.trim() })}
+              />
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -140,7 +163,7 @@ export function AddSavedJobModal({
           </Field>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit">{job ? "Save changes" : "Save job"}</Button>
+            <Button type="submit" disabled={isSubmitting}>{job ? "Save changes" : "Save job"}</Button>
           </div>
         </form>
       </DialogContent>

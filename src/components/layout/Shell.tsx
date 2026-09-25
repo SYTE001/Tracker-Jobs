@@ -12,7 +12,13 @@ import { ApplicationFormModal } from "@/features/applications/ApplicationFormMod
 import { cn } from "@/lib/utils"
 
 export function Shell({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("jobtrack-sidebar-collapsed") === "1"
+    } catch {
+      return false
+    }
+  })
   const [mobileOpen, setMobileOpen] = useState(false)
   const [commandOpen, setCommandOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -23,6 +29,14 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     ghostSweep()
   }, [ghostSweep])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("jobtrack-sidebar-collapsed", collapsed ? "1" : "0")
+    } catch {
+      /* noop */
+    }
+  }, [collapsed])
 
   // "n" = new application, "/" focus handled by pages; ignore when typing
   useEffect(() => {
@@ -61,17 +75,18 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <MobileNav onOpenMore={() => setMobileOpen(true)} />
 
-      {/* Mobile "More" menu */}
+      {/* Mobile "More" bottom sheet */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end p-4 md:hidden">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setMobileOpen(false)} aria-hidden="true" />
-          <div className="relative w-52 rounded-lg border border-border bg-card p-1.5 shadow-xl">
+        <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} aria-hidden="true" />
+          <div className="relative rounded-t-2xl border-t border-border bg-card p-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-overlay">
+            <div className="mx-auto mb-2 mt-1 h-1 w-9 rounded-full bg-border" aria-hidden="true" />
             {MORE_ITEMS.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={() => setMobileOpen(false)}
-                className="block rounded-md px-3 py-2 text-sm hover:bg-accent"
+                className="block rounded-md px-3 py-3 text-sm font-medium hover:bg-accent"
               >
                 {item.label}
               </NavLink>

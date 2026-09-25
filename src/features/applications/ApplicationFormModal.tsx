@@ -1,6 +1,8 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
+import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { useJobStore } from "@/store/useJobStore"
 import { useCompanyMap } from "@/store/selectors"
 import {
@@ -22,6 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input, Textarea } from "@/components/ui/input"
 import { Select, Field } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ScheduleFollowupModal } from "@/features/followups/ScheduleFollowupModal"
 import { SOURCE_LABELS, WORK_MODE_LABELS, JOB_TYPE_LABELS, PRIORITY_META, STATUS_META } from "@/lib/constants"
 import { todayIso } from "@/lib/dates"
 
@@ -44,6 +47,8 @@ interface FormValues {
   notes: string
   recruiter_name: string
   recruiter_contact: string
+  resume_used: string
+  cover_letter_used: string
 }
 
 const EMPTY: FormValues = {
@@ -65,7 +70,11 @@ const EMPTY: FormValues = {
   notes: "",
   recruiter_name: "",
   recruiter_contact: "",
+  resume_used: "",
+  cover_letter_used: "",
 }
+
+const isValidDate = (v: string) => v === "" || !Number.isNaN(new Date(v).getTime())
 
 export function ApplicationFormModal({
   open,
@@ -83,8 +92,14 @@ export function ApplicationFormModal({
   const addApplication = useJobStore((s) => s.addApplication)
   const updateApplication = useJobStore((s) => s.updateApplication)
   const companies = useCompanyMap()
+  const navigate = useNavigate()
   const editing = Boolean(application)
   const company = application ? companies.get(application.company_id) : undefined
+
+  const [showMore, setShowMore] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [followupForId, setFollowupForId] = useState<string | null>(null)
+  const [followupOpen, setFollowupOpen] = useState(false)
 
   const {
     register,
@@ -96,6 +111,7 @@ export function ApplicationFormModal({
 
   useEffect(() => {
     if (open) {
+      setShowMore(Boolean(application)) // full form when editing, quick add otherwise
       reset(
         application
           ? {
@@ -117,6 +133,8 @@ export function ApplicationFormModal({
               notes: application.notes ?? "",
               recruiter_name: application.recruiter_name ?? "",
               recruiter_contact: application.recruiter_contact ?? "",
+              resume_used: application.resume_used ?? "",
+              cover_letter_used: application.cover_letter_used ?? "",
             }
           : { ...EMPTY, status: defaultStatus ?? EMPTY.status },
       )
@@ -124,6 +142,7 @@ export function ApplicationFormModal({
   }, [open, application, company?.name, reset, defaultStatus])
 
   const onSubmit = (values: FormValues) => {
+    if (submitting) return
     if (!values.job_title.trim()) {
       setError("job_title", { type: "manual", message: "Job title is required" })
       return
@@ -136,10 +155,20 @@ export function ApplicationFormModal({
       setError("job_url", { type: "manual", message: "Must be a valid http(s) URL" })
       return
     }
+    if (!isValidDate(values.applied_date)) {
+      setError("applied_date", { type: "manual", message: "Invalid date" })
+      return
+    }
+    if (!isValidDate(values.deadline)) {
+      setError("deadline", { type: "manual", message: "Invalid date" })
+      return
+    }
     if (values.salary_min && values.salary_max && Number(values.salary_max) < Number(values.salary_min)) {
       setError("salary_max", { type: "manual", message: "Max must be ≥ min" })
       return
     }
+
+    setSubmitting(true)
     const payload = {
       job_title: values.job_title,
       companyName: values.companyName,
@@ -155,148 +184,189 @@ export function ApplicationFormModal({
       salary_max: values.salary_max ? Number(values.salary_max) : null,
       currency: values.currency as Currency,
       priority: values.priority as Priority,
-      tags: values.tags
-        ? values.tags.split(",").map((t) => t.trim()).filter(Boolean)
-        : [],
+      tags: values.tags ? values.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
       notes: values.notes || undefined,
       recruiter_name: values.recruiter_name || undefined,
       recruiter_contact: values.recruiter_contact || undefined,
+      resume_used: values.resume_used || undefined,
+      cover_letter_used: values.cover_letter_used || undefined,
     }
-    if (application) {
-      updateApplication(application.id, payload)
-      toast.success("Application updated")
-      onSaved?.(application.id)
-    } else {
-      const id = addApplication(payload)
-      toast.success("Application added")
-      onSaved?.(id)
+
+    try {
+      if (application) {
+        updateApplication(application.id, payload)
+        toast.success("Application updated")
+        onSaved?.(application.id)
+      } else {
+        const id = addApplication(payload)
+        toast.success("Application added", {
+          description: `${payload.job_title} · ${payload.companyName}`,
+          action: { label: "Open details", onClick: () => navigate(`/applications/${id}`) },
+          cancel: { label: "Add follow-up", onClick: () => { setFollowupForId(id); setFollowupOpen(true) } },
+        })
+        onSaved?.(id)
+      }
+      onOpenChange(false)
+    } finally {
+      setSubmitting(false)
     }
-    onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-base">{editing ? "Edit application" : "Add application"}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Job title *" error={errors.job_title?.message} htmlFor="job_title">
-              <Input id="job_title" placeholder="Senior Frontend Engineer" {...register("job_title")} />
-            </Field>
-            <Field label="Company *" error={errors.companyName?.message} htmlFor="companyName">
-              <Input id="companyName" placeholder="Acme Corp" {...register("companyName")} />
-            </Field>
-          </div>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="flex max-h-[90vh] flex-col gap-0 !overflow-hidden p-0 sm:max-w-2xl max-sm:!inset-0 max-sm:!left-0 max-sm:!top-0 max-sm:!max-h-none max-sm:!h-full max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!rounded-none"
+        >
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle className="text-base">{editing ? "Edit application" : "Add application"}</DialogTitle>
+          </DialogHeader>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Status" error={errors.status?.message} htmlFor="status">
-              <Select id="status" {...register("status")}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_META[s].label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Source" htmlFor="source">
-              <Select id="source" {...register("source")}>
-                {SOURCES.map((s) => (
-                  <option key={s} value={s}>
-                    {SOURCE_LABELS[s]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Priority" htmlFor="priority">
-              <Select id="priority" {...register("priority")}>
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
-                    {PRIORITY_META[p].label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {/* Required */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Job title *" error={errors.job_title?.message} htmlFor="job_title">
+                  <Input id="job_title" placeholder="Senior Frontend Engineer" autoFocus {...register("job_title")} />
+                </Field>
+                <Field label="Company *" error={errors.companyName?.message} htmlFor="companyName">
+                  <Input id="companyName" placeholder="Acme Corp" {...register("companyName")} />
+                </Field>
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Job URL" error={errors.job_url?.message} htmlFor="job_url">
-              <Input id="job_url" placeholder="https://…" {...register("job_url")} />
-            </Field>
-            <Field label="Location" htmlFor="location">
-              <Input id="location" placeholder="Jakarta, Indonesia" {...register("location")} />
-            </Field>
-          </div>
+              {/* Quick optional */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field label="Status" error={errors.status?.message} htmlFor="status">
+                  <Select id="status" {...register("status")}>
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>{STATUS_META[s].label}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Source" htmlFor="source">
+                  <Select id="source" {...register("source")}>
+                    {SOURCES.map((s) => (
+                      <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Priority" htmlFor="priority">
+                  <Select id="priority" {...register("priority")}>
+                    {PRIORITIES.map((p) => (
+                      <option key={p} value={p}>{PRIORITY_META[p].label}</option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Work mode" htmlFor="work_mode">
-              <Select id="work_mode" {...register("work_mode")}>
-                <option value="">Any</option>
-                {WORK_MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {WORK_MODE_LABELS[m]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Job type" htmlFor="job_type">
-              <Select id="job_type" {...register("job_type")}>
-                <option value="">Any</option>
-                {JOB_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {JOB_TYPE_LABELS[t]}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Applied date" htmlFor="applied_date">
-              <Input id="applied_date" type="date" {...register("applied_date")} />
-            </Field>
-          </div>
+              <Field label="Job URL" error={errors.job_url?.message} htmlFor="job_url">
+                <Input id="job_url" placeholder="https://…" {...register("job_url")} />
+              </Field>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Min salary" htmlFor="salary_min">
-              <Input id="salary_min" type="number" placeholder="5000000" {...register("salary_min")} />
-            </Field>
-            <Field label="Max salary" error={errors.salary_max?.message} htmlFor="salary_max">
-              <Input id="salary_max" type="number" placeholder="12000000" {...register("salary_max")} />
-            </Field>
-            <Field label="Currency" htmlFor="currency">
-              <Select id="currency" {...register("currency")}>
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+              {/* More details toggle */}
+              <button
+                type="button"
+                onClick={() => setShowMore((v) => !v)}
+                className="flex w-full items-center gap-1.5 border-t border-border pt-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                aria-expanded={showMore}
+              >
+                {showMore ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                More details
+              </button>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Recruiter" htmlFor="recruiter_name">
-              <Input id="recruiter_name" placeholder="Name" {...register("recruiter_name")} />
-            </Field>
-            <Field label="Recruiter contact" htmlFor="recruiter_contact">
-              <Input id="recruiter_contact" placeholder="email / phone / LinkedIn" {...register("recruiter_contact")} />
-            </Field>
-          </div>
+              {showMore && (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Location" htmlFor="location">
+                      <Input id="location" placeholder="Jakarta, Indonesia" {...register("location")} />
+                    </Field>
+                    <Field label="Applied date" error={errors.applied_date?.message} htmlFor="applied_date">
+                      <Input id="applied_date" type="date" {...register("applied_date")} />
+                    </Field>
+                  </div>
 
-          <Field label="Tags (comma-separated)" htmlFor="tags">
-            <Input id="tags" placeholder="frontend, fintech, remote" {...register("tags")} />
-          </Field>
-          <Field label="Notes" htmlFor="notes">
-            <Textarea id="notes" placeholder="Anything worth remembering…" {...register("notes")} />
-          </Field>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field label="Work mode" htmlFor="work_mode">
+                      <Select id="work_mode" {...register("work_mode")}>
+                        <option value="">Any</option>
+                        {WORK_MODES.map((m) => (
+                          <option key={m} value={m}>{WORK_MODE_LABELS[m]}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Job type" htmlFor="job_type">
+                      <Select id="job_type" {...register("job_type")}>
+                        <option value="">Any</option>
+                        {JOB_TYPES.map((t) => (
+                          <option key={t} value={t}>{JOB_TYPE_LABELS[t]}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Deadline" error={errors.deadline?.message} htmlFor="deadline">
+                      <Input id="deadline" type="date" {...register("deadline")} />
+                    </Field>
+                  </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">{editing ? "Save changes" : "Add application"}</Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field label="Min salary" htmlFor="salary_min">
+                      <Input id="salary_min" type="number" placeholder="5000000" {...register("salary_min")} />
+                    </Field>
+                    <Field label="Max salary" error={errors.salary_max?.message} htmlFor="salary_max">
+                      <Input id="salary_max" type="number" placeholder="12000000" {...register("salary_max")} />
+                    </Field>
+                    <Field label="Currency" htmlFor="currency">
+                      <Select id="currency" {...register("currency")}>
+                        {CURRENCIES.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Recruiter" htmlFor="recruiter_name">
+                      <Input id="recruiter_name" placeholder="Name" {...register("recruiter_name")} />
+                    </Field>
+                    <Field label="Recruiter contact" htmlFor="recruiter_contact">
+                      <Input id="recruiter_contact" placeholder="email / phone / LinkedIn" {...register("recruiter_contact")} />
+                    </Field>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Resume used" htmlFor="resume_used">
+                      <Input id="resume_used" placeholder="e.g. Frontend_v3.pdf" {...register("resume_used")} />
+                    </Field>
+                    <Field label="Cover letter" htmlFor="cover_letter_used">
+                      <Input id="cover_letter_used" placeholder="e.g. Acme_cover.pdf" {...register("cover_letter_used")} />
+                    </Field>
+                  </div>
+
+                  <Field label="Tags (comma-separated)" htmlFor="tags">
+                    <Input id="tags" placeholder="frontend, fintech, remote" {...register("tags")} />
+                  </Field>
+                  <Field label="Notes" htmlFor="notes">
+                    <Textarea id="notes" placeholder="Anything worth remembering…" {...register("notes")} />
+                  </Field>
+                </div>
+              )}
+            </div>
+
+            {/* Sticky footer action bar (mobile + desktop) */}
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting} aria-busy={submitting}>
+                {editing ? "Save changes" : "Add application"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {followupForId && (
+        <ScheduleFollowupModal open={followupOpen} onOpenChange={setFollowupOpen} applicationId={followupForId} />
+      )}
+    </>
   )
 }

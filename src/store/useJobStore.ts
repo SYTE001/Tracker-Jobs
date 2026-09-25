@@ -24,6 +24,30 @@ import { settingsDataActions } from "./settingsData"
 import type { AppStore, SetFn, GetFn } from "./context"
 
 const STORAGE_KEY = "jobtrack-local-db-v1"
+const RECOVERY_KEY = "jobtrack-recovery"
+const CORRUPT_FLAG = "jobtrack-corrupt"
+
+/** Recovery state exposed to the UI when stored data could not be parsed. */
+export function getRecoveryInfo(): { corrupt: boolean; raw: string | null } {
+  try {
+    return {
+      corrupt: localStorage.getItem(CORRUPT_FLAG) === "1",
+      raw: localStorage.getItem(RECOVERY_KEY),
+    }
+  } catch {
+    return { corrupt: false, raw: null }
+  }
+}
+
+/** Clear the recovery marker once the user has resolved the corrupt-data prompt. */
+export function clearRecovery() {
+  try {
+    localStorage.removeItem(CORRUPT_FLAG)
+    localStorage.removeItem(RECOVERY_KEY)
+  } catch {
+    /* noop */
+  }
+}
 
 const defaultSettings: Settings = {
   theme: "system",
@@ -61,7 +85,16 @@ const dbStorage: StateStorage = {
       }
       return JSON.stringify({ state: parsed, version: 0 }) // wrap raw legacy db
     } catch {
-      return null // corrupt storage → start fresh, never brick
+      // Corrupt storage → preserve the raw payload for recovery, flag it for the
+      // UI, and start with a clean state so the app never bricks or silently
+      // masks data loss as an empty account.
+      try {
+        localStorage.setItem(RECOVERY_KEY, value)
+        localStorage.setItem(CORRUPT_FLAG, "1")
+      } catch {
+        /* storage unavailable — nothing more we can do */
+      }
+      return null
     }
   },
   setItem(name, value) {

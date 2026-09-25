@@ -1,4 +1,5 @@
-import type { Application, Company } from "@/types"
+import type { Application, Company, Interview, Reminder } from "@/types"
+import { daysUntil } from "@/lib/dates"
 
 export interface SearchFilters {
   query?: string
@@ -10,6 +11,10 @@ export interface SearchFilters {
   company_id?: string
   archived?: boolean | "all"
   tag?: string
+  /** Only applications with an open (incomplete) follow-up. */
+  followup_due?: boolean
+  /** Only applications with an interview today or later. */
+  interview_upcoming?: boolean
 }
 
 const SQ = (v: unknown): string => String(v ?? "").toLowerCase().trim()
@@ -19,9 +24,21 @@ export function filterApplications(
   applications: Application[],
   companies: Company[],
   filters: SearchFilters,
+  related?: { reminders?: Reminder[]; interviews?: Interview[] },
 ): Application[] {
   const q = SQ(filters.query)
   const companyMap = new Map(companies.map((c) => [c.id, c.name]))
+
+  let dueSet: Set<string> | null = null
+  if (filters.followup_due && related?.reminders) {
+    dueSet = new Set(related.reminders.filter((r) => !r.completed).map((r) => r.application_id))
+  }
+  let interviewSet: Set<string> | null = null
+  if (filters.interview_upcoming && related?.interviews) {
+    interviewSet = new Set(
+      related.interviews.filter((iv) => (daysUntil(iv.date) ?? -1) >= 0).map((iv) => iv.application_id),
+    )
+  }
 
   return applications.filter((app) => {
     if (filters.archived === true && !app.archived) return false
@@ -33,6 +50,8 @@ export function filterApplications(
     if (filters.job_type && app.job_type !== filters.job_type) return false
     if (filters.company_id && app.company_id !== filters.company_id) return false
     if (filters.tag && !(app.tags ?? []).includes(filters.tag)) return false
+    if (dueSet && !dueSet.has(app.id)) return false
+    if (interviewSet && !interviewSet.has(app.id)) return false
 
     if (q) {
       const companyName = SQ(companyMap.get(app.company_id))

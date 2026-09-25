@@ -1,13 +1,22 @@
-import { useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Command } from "cmdk"
-import { Plus, Search, CornerDownLeft } from "lucide-react"
+import { Plus, Search, CornerDownLeft, Building2, Bookmark, CalendarDays, BellRing, Briefcase } from "lucide-react"
 import { useJobStore } from "@/store/useJobStore"
-import { useCompanyMap } from "@/store/selectors"
 import { PRIMARY, SECONDARY } from "@/lib/nav"
-import { STATUS_META } from "@/lib/constants"
+import { globalSearch, ENTITY_LABEL, type SearchEntity } from "@/lib/globalSearch"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { CompanyLogo } from "@/components/shared"
+import { Kbd } from "@/components/ui/primitives"
+
+const ENTITY_ICON: Record<SearchEntity, typeof Briefcase> = {
+  application: Briefcase,
+  company: Building2,
+  saved: Bookmark,
+  interview: CalendarDays,
+  followup: BellRing,
+}
+
+const GROUP_ORDER: SearchEntity[] = ["application", "company", "saved", "interview", "followup"]
 
 export function CommandPalette({
   open,
@@ -21,7 +30,10 @@ export function CommandPalette({
   const navigate = useNavigate()
   const applications = useJobStore((s) => s.applications)
   const companies = useJobStore((s) => s.companies)
-  const companyMap = useCompanyMap()
+  const saved_jobs = useJobStore((s) => s.saved_jobs)
+  const interviews = useJobStore((s) => s.interviews)
+  const reminders = useJobStore((s) => s.reminders)
+  const [query, setQuery] = useState("")
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -34,79 +46,97 @@ export function CommandPalette({
     return () => document.removeEventListener("keydown", down)
   }, [open, onOpenChange])
 
-  const recent = [...applications]
-    .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
-    .slice(0, 6)
+  // Reset the query whenever the palette closes.
+  useEffect(() => {
+    if (!open) setQuery("")
+  }, [open])
+
+  const results = useMemo(
+    () => globalSearch({ applications, companies, saved_jobs, interviews, reminders }, query),
+    [applications, companies, saved_jobs, interviews, reminders, query],
+  )
+
+  const go = (to: string) => {
+    onOpenChange(false)
+    navigate(to)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="top-[12%] max-w-xl -translate-y-0 p-0 sm:top-[10%]">
-        <Command
-          loop
-          className="overflow-hidden"
-          filter={(value, search) => {
-            const q = search.trim().toLowerCase()
-            return q.length === 0 || value.toLowerCase().includes(q) ? 1 : 0
-          }}
-        >
+      <DialogContent hideClose className="top-[12%] max-w-xl -translate-y-0 p-0 shadow-overlay sm:top-[10%]">
+        {/* We drive matching via globalSearch, so disable cmdk's own filter. */}
+        <Command loop shouldFilter={false} className="overflow-hidden">
           <div className="flex items-center gap-2 border-b border-border px-3">
             <Search className="h-4 w-4 text-muted-foreground" />
             <Command.Input
-              placeholder="Search jobs, companies, or jump to…"
+              value={query}
+              onValueChange={setQuery}
+              placeholder="Search applications, companies, interviews…"
               className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
             />
-            <CornerDownLeft className="h-3.5 w-3.5 text-muted-foreground/60" />
+            <span className="hidden items-center gap-1 text-muted-foreground/60 sm:flex">
+              <CornerDownLeft className="h-3.5 w-3.5" />
+              <Kbd>Esc</Kbd>
+            </span>
           </div>
-          <Command.List className="max-h-[50vh] overflow-y-auto p-1.5">
+          <Command.List className="max-h-[52vh] overflow-y-auto p-1.5">
             <Command.Empty className="px-3 py-6 text-center text-sm text-muted-foreground">
-              No results found.
+              No matches for “{query}”.
             </Command.Empty>
 
-            <Command.Group heading="Quick actions" className="text-xs font-medium text-muted-foreground">
-              <Command.Item
-                onSelect={() => {
-                  onOpenChange(false)
-                  onAdd()
-                }}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-accent"
-              >
-                <Plus className="h-4 w-4" /> Add application
-              </Command.Item>
-              {[...PRIMARY, ...SECONDARY].map((n) => (
+            {query.trim() === "" && (
+              <Command.Group heading="Quick actions" className="px-1 pb-1 pt-1.5 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1">
                 <Command.Item
-                  key={n.to}
-                  value={`go ${n.label}`}
+                  value="add application"
                   onSelect={() => {
                     onOpenChange(false)
-                    navigate(n.to)
+                    onAdd()
                   }}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-accent"
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm data-[selected=true]:bg-accent"
                 >
-                  <n.icon className="h-4 w-4" /> Go to {n.label}
+                  <Plus className="h-4 w-4" /> Add application
                 </Command.Item>
-              ))}
-            </Command.Group>
+                {[...PRIMARY, ...SECONDARY].map((n) => (
+                  <Command.Item
+                    key={n.to}
+                    value={`go ${n.label}`}
+                    onSelect={() => go(n.to)}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm data-[selected=true]:bg-accent"
+                  >
+                    <n.icon className="h-4 w-4 text-muted-foreground" /> Go to {n.label}
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
 
-            <Command.Group heading="Recent applications" className="text-xs font-medium text-muted-foreground">
-              {recent.map((app) => (
-                <Command.Item
-                  key={app.id}
-                  value={`${app.job_title} ${companyMap.get(app.company_id)?.name ?? ""}`}
-                  onSelect={() => {
-                    onOpenChange(false)
-                    navigate(`/applications/${app.id}`)
-                  }}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm data-[selected=true]:bg-accent"
+            {GROUP_ORDER.map((entity) => {
+              const items = results[entity]
+              if (!items.length) return null
+              const Icon = ENTITY_ICON[entity]
+              const heading = query.trim() === "" && entity === "application" ? "Recent applications" : ENTITY_LABEL[entity]
+              return (
+                <Command.Group
+                  key={entity}
+                  heading={heading}
+                  className="px-1 pb-1 pt-1.5 text-xs font-medium text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1"
                 >
-                  <CompanyLogo company={companies.find((c) => c.id === app.company_id)} size="sm" />
-                  <span className="flex-1 truncate">{app.job_title}</span>
-                  <span className="text-xs text-muted-foreground">{STATUS_META[app.status].label}</span>
-                </Command.Item>
-              ))}
-              {recent.length === 0 && (
-                <div className="px-3 py-3 text-sm text-muted-foreground">No applications yet.</div>
-              )}
-            </Command.Group>
+                  {items.map((r) => (
+                    <Command.Item
+                      key={r.id}
+                      value={`${entity}-${r.id}-${r.title}-${r.subtitle}`}
+                      onSelect={() => go(r.to)}
+                      className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-sm data-[selected=true]:bg-accent"
+                    >
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{r.title}</span>
+                      <span className="max-w-[40%] truncate text-xs text-muted-foreground">{r.subtitle}</span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              )
+            })}
           </Command.List>
         </Command>
       </DialogContent>

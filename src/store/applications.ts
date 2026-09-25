@@ -62,11 +62,15 @@ export function applicationActions(
     },
 
     updateApplication(id, patch) {
+      const current = get().applications.find((a) => a.id === id)
       const isNoteEdit =
-        typeof patch.notes === "string" && patch.notes !== get().applications.find((a) => a.id === id)?.notes
+        typeof patch.notes === "string" && patch.notes.trim() !== "" && patch.notes !== current?.notes
+      const now = nowIso()
       set((s) => ({
         applications: s.applications.map((a) =>
-          a.id === id ? { ...a, ...patch, updated_at: nowIso() } : a,
+          a.id === id
+            ? { ...a, ...patch, ...(isNoteEdit ? { last_activity_at: now } : {}), updated_at: now }
+            : a,
         ),
       }))
       if (isNoteEdit) {

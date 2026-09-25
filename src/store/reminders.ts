@@ -37,6 +37,10 @@ export function reminderActions(
         reminders: s.reminders.map((x) =>
           x.id === id ? { ...x, completed: true, completed_at: now } : x,
         ),
+        // Completing a follow-up is meaningful activity (resets ghosted timing).
+        applications: s.applications.map((a) =>
+          a.id === r.application_id ? { ...a, last_activity_at: now, updated_at: now } : a,
+        ),
       }))
       get().addEvent(r.application_id, "reminder_completed", "Follow-up completed")
     },

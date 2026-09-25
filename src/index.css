@@ -21,51 +21,58 @@
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
+  /* Radius: buttons/inputs 8px, compact rows 8–10px, cards 12px */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+
+  /* Elevation — reserved for overlays only (drawer, modal, popover, drag) */
+  --shadow-overlay: 0 12px 32px -12px hsl(240 10% 8% / 0.28), 0 4px 12px -6px hsl(240 10% 8% / 0.16);
+  --shadow-pop: 0 8px 24px -12px hsl(240 10% 8% / 0.24), 0 2px 6px -3px hsl(240 10% 8% / 0.12);
+  --shadow-drag: 0 16px 36px -12px hsl(240 10% 8% / 0.34);
 }
 
 :root {
-  --radius: 0.5rem;
-  /* Neutrals (zinc) */
-  --background: 0 0% 99%;
-  --foreground: 240 10% 8%;
+  --radius: 0.75rem;
+  /* Pure neutral scale */
+  --background: 0 0% 100%;
+  --foreground: 240 8% 9%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 8%;
+  --card-foreground: 240 8% 9%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 8%;
-  --muted: 240 6% 96%;
-  --muted-foreground: 240 4% 44%;
-  --accent: 240 6% 94%;
-  --accent-foreground: 240 6% 12%;
-  --border: 240 5% 90%;
-  --input: 240 5% 88%;
-  --ring: 240 5% 70%;
-  /* Restrained blue accent */
-  --primary: 221 83% 46%;
-  --primary-foreground: 210 40% 98%;
-  --destructive: 0 72% 51%;
+  --popover-foreground: 240 8% 9%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 42%;
+  --accent: 240 5% 95%;
+  --accent-foreground: 240 8% 12%;
+  --border: 240 6% 90%;
+  --input: 240 6% 87%;
+  --ring: 240 8% 24%;
+  /* Ink accent — the single non-status accent */
+  --primary: 240 9% 11%;
+  --primary-foreground: 0 0% 99%;
+  --destructive: 0 72% 46%;
   --destructive-foreground: 0 0% 100%;
 }
 
 .dark {
-  --background: 240 6% 6%;
-  --foreground: 0 0% 95%;
-  --card: 240 6% 8%;
-  --card-foreground: 0 0% 95%;
-  --popover: 240 6% 9%;
-  --popover-foreground: 0 0% 95%;
+  --background: 240 8% 6%;
+  --foreground: 0 0% 96%;
+  --card: 240 7% 9%;
+  --card-foreground: 0 0% 96%;
+  --popover: 240 7% 10%;
+  --popover-foreground: 0 0% 96%;
   --muted: 240 5% 14%;
-  --muted-foreground: 240 5% 60%;
-  --accent: 240 5% 16%;
-  --accent-foreground: 240 6% 90%;
-  --border: 240 5% 16%;
+  --muted-foreground: 240 5% 62%;
+  --accent: 240 5% 15%;
+  --accent-foreground: 0 0% 92%;
+  --border: 240 5% 17%;
   --input: 240 5% 20%;
-  --ring: 240 5% 45%;
-  --primary: 217 88% 60%;
-  --primary-foreground: 240 6% 8%;
-  --destructive: 0 68% 56%;
+  --ring: 0 0% 72%;
+  /* Ink inverts to near-white in dark */
+  --primary: 0 0% 95%;
+  --primary-foreground: 240 9% 9%;
+  --destructive: 0 66% 54%;
   --destructive-foreground: 0 0% 100%;
 }
 
@@ -79,25 +86,56 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-family:
+      ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+      "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Tabular numerals for metrics, tables, dates */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "cv11", "ss01";
   }
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
-    outline-offset: 1px;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.16);
+    color: hsl(var(--foreground));
   }
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 11px;
+    height: 11px;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.35);
+    background: hsl(var(--muted-foreground) / 0.32);
     border-radius: 999px;
-    border: 2px solid transparent;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
     background-clip: content-box;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
+  }
+}
+
+@layer utilities {
+  /* Overlay-only elevation helpers */
+  .shadow-overlay {
+    box-shadow: var(--shadow-overlay);
+  }
+  .shadow-pop {
+    box-shadow: var(--shadow-pop);
+  }
+  .shadow-drag {
+    box-shadow: var(--shadow-drag);
   }
 }
 
@@ -108,5 +146,6 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
