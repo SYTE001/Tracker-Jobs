@@ -1,47 +1,89 @@
-import { LayoutDashboard, List, BarChart2, Briefcase } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { NavLink } from "react-router-dom"
+import { Briefcase } from "lucide-react"
+import { PRIMARY, SECONDARY } from "@/lib/nav"
+import { cn } from "@/lib/utils"
+import { useDueCounts } from "@/store/selectors"
 
-export function Sidebar({ collapsed }: { collapsed: boolean }) {
-  const items = [
-    { icon: LayoutDashboard, label: 'Kanban Board', active: true },
-    { icon: List, label: 'List View', active: false },
-    { icon: BarChart2, label: 'Metrics', active: false },
-    { icon: Briefcase, label: 'Companies', active: false },
-  ]
+export function Sidebar({
+  collapsed,
+  mobileOpen,
+  onClose,
+}: {
+  collapsed: boolean
+  mobileOpen: boolean
+  onClose: () => void
+}) {
+  const { overdue } = useDueCounts()
+
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      "group flex w-full items-center gap-3 rounded-md text-[13px] font-medium transition-colors",
+      collapsed ? "justify-center px-0 py-2.5" : "px-2.5 py-2",
+      isActive
+        ? "bg-accent text-foreground"
+        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+    )
 
   return (
-    <aside className={cn(
-      "fixed top-0 left-0 bottom-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-40 transition-all duration-200 flex flex-col",
-      collapsed ? "w-[68px] items-center px-2 py-4" : "w-[240px] px-3 py-4"
-    )}>
-      <div className={cn("flex items-center text-slate-900 dark:text-slate-50 mb-6", collapsed ? "justify-center" : "gap-3 px-2")}>
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold shrink-0">
-          JT
-        </div>
-        {!collapsed && (
-          <>
-            <span className="font-bold text-[17px] tracking-tight">JobTrack</span>
-            <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500">PRO</span>
-          </>
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={cn(
+          "fixed bottom-0 left-0 top-0 z-40 flex flex-col border-r border-border bg-card transition-all duration-200 md:translate-x-0",
+          collapsed ? "md:w-[64px]" : "md:w-[232px]",
+          mobileOpen ? "w-[232px] translate-x-0 shadow-2xl" : "w-[232px] -translate-x-full",
         )}
-      </div>
+      >
+        <div className={cn("flex items-center gap-2.5 px-4 pb-4 pt-5", collapsed && "md:justify-center md:px-0")}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <Briefcase className="h-4 w-4" />
+          </div>
+          {(!collapsed || mobileOpen) && (
+            <div>
+              <p className="text-sm font-semibold leading-tight tracking-tight">JobTrack</p>
+              <p className="text-[10px] leading-tight text-muted-foreground">Job application tracker</p>
+            </div>
+          )}
+        </div>
 
-      {!collapsed && <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 mb-2">Menu</div>}
-      
-      <nav className="flex flex-col gap-1 w-full">
-        {items.map((item, i) => (
-          <button key={i} className={cn(
-            "w-full flex items-center text-left rounded-md transition-colors",
-            collapsed ? "justify-center p-2.5" : "px-3 py-2 gap-3",
-            item.active 
-              ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-semibold" 
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 font-medium"
-          )}>
-            <item.icon className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-[13px]">{item.label}</span>}
-          </button>
-        ))}
-      </nav>
-    </aside>
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+          <p className={cn("px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground", collapsed && "md:hidden")}>
+            Workspace
+          </p>
+          {PRIMARY.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.to === "/applications"} className={linkClass} onClick={onClose}>
+              <item.icon className="h-4 w-4 shrink-0" />
+              {(!collapsed || mobileOpen) && <span className="flex-1 text-left">{item.label}</span>}
+              {(!collapsed || mobileOpen) && item.label === "Follow-ups" && overdue > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-semibold text-destructive-foreground">
+                  {overdue}
+                </span>
+              )}
+            </NavLink>
+          ))}
+
+          <p className={cn("px-2 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground", collapsed && "md:hidden")}>
+            System
+          </p>
+          {SECONDARY.map((item) => (
+            <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
+              <item.icon className="h-4 w-4 shrink-0" />
+              {(!collapsed || mobileOpen) && <span className="flex-1 text-left">{item.label}</span>}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className={cn("border-t border-border px-4 py-3 text-[11px] text-muted-foreground", collapsed && "md:hidden")}>
+          <p className="font-medium">Local-first</p>
+          <p>Your data stays in this browser.</p>
+        </div>
+      </aside>
+    </>
   )
 }

@@ -1,41 +1,55 @@
-import { Menu, Search, Bell } from 'lucide-react'
-import { AddApplicationModal } from '@/features/kanban/AddApplicationModal'
+import { useLocation } from "react-router-dom"
+import { Menu, Search, Plus } from "lucide-react"
+import { ROUTE_TITLES } from "@/lib/nav"
+import { Button } from "@/components/ui/button"
+import { Kbd } from "@/components/ui/primitives"
 
-interface TopbarProps {
-  sidebarCollapsed: boolean
-  setSidebarCollapsed: (c: boolean) => void
-}
+export function Topbar({
+  onToggleSidebar,
+  onOpenAdd,
+  onOpenCommand,
+}: {
+  onToggleSidebar: () => void
+  onOpenAdd: () => void
+  onOpenCommand: () => void
+}) {
+  const { pathname } = useLocation()
+  const title = ROUTE_TITLES[pathname] ?? "JobTrack"
 
-export function Topbar({ sidebarCollapsed, setSidebarCollapsed }: TopbarProps) {
   return (
-    <header className="h-[60px] sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center px-4 md:px-6 gap-4">
-      <button 
-        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        className="hidden md:flex w-9 h-9 items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur sm:px-6">
+      <button
+        onClick={onToggleSidebar}
+        className="hidden h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent md:flex"
+        aria-label="Toggle sidebar"
       >
-        <Menu className="w-5 h-5" />
+        <Menu className="h-4 w-4" />
       </button>
-
-      <div className="relative flex-1 max-w-md">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input 
-          type="text" 
-          placeholder="Search jobs, companies, notes..." 
-          className="w-full h-9 pl-9 pr-12 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900/30 transition-all placeholder:text-slate-400 dark:text-slate-200"
-        />
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded">
-            ⌘K
-          </kbd>
-        </div>
+      <div className="hidden h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground sm:flex md:hidden lg:hidden">
+        <Plus className="h-4 w-4" />
       </div>
+      <h1 className="text-[15px] font-semibold tracking-tight sm:text-base">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
-        <button className="w-9 h-9 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors relative">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900" />
+        <button
+          onClick={onOpenCommand}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent md:hidden"
+          aria-label="Search"
+        >
+          <Search className="h-4 w-4" />
         </button>
-        <AddApplicationModal />
+        <button
+          onClick={onOpenCommand}
+          className="hidden h-8 items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent md:flex md:w-56 lg:w-64"
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span className="flex-1 text-left">Search…</span>
+          <Kbd>⌘K</Kbd>
+        </button>
+        <Button size="sm" onClick={onOpenAdd} className="hidden sm:inline-flex">
+          <Plus className="h-4 w-4" />
+          Add job
+        </Button>
       </div>
     </header>
   )
